@@ -226,73 +226,18 @@ export class MusicPlayer {
 
         try {
             queue.isPlaying = true;
-            let stderrBuffer = '';
-
-            console.log(`[MusicPlayer] 🎵 Piped Streaming (yt-dlp): ${track.url}`);
-
-            // Build yt-dlp args to bypass YouTube bot detection
-            const ytProcess = ytdlExec(track.url, {
-                output: '-',
-                format: 'bestaudio/best',
-                noCheckCertificates: true,
-                noWarnings: true,
-                youtubeSkipDashManifest: true,
-                noPlaylist: true,
-                preferFreeFormats: true,
-                addHeader: [
-                    'referer:youtube.com',
-                    'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-                ],
-            }, { stdio: ['ignore', 'pipe', 'pipe'] });
-
-            // Catch the promise rejection when the process is killed (SIGTERM = intentional skip/stop)
-            // Code 1 = YouTube blocked us — send a helpful message and advance the queue.
-            ytProcess.catch((err) => {
-                if (err.signal === 'SIGTERM' || err.message?.includes('SIGTERM')) return;
-
-                const errorLines = stderrBuffer.split('\n')
-                    .filter(l => l.includes('ERROR') || l.includes('error'))
-                    .slice(0, 3).join('\n');
-
-                if (errorLines.includes('Sign in') || errorLines.includes('age') || errorLines.includes('unavailable')) {
-                    queue.textChannel.send(`⚠️ **Skipped**: \`${track.title}\` — This video is age-restricted or unavailable.`).catch(() => { });
-                } else if (!errorLines.includes('Errno 22')) {
-                    // Only log real errors, ignore "unable to write data" (Errno 22) as it's just pipe cleanup
-                    console.error('[MusicPlayer] yt-dlp failed (code 1):', errorLines || err.message);
-                    queue.textChannel.send(`⚠️ **Skipped**: \`${track.title}\` — Could not stream this track (YouTube blocked it).`).catch(() => { });
-                }
-                this.onTrackEnd(guildId, true);
-            });
-
-            queue.currentProcess = ytProcess;
-
-            if (!ytProcess.stdout) {
-                throw new Error("Failed to open stdout from yt-dlp");
-            }
-
-            const resource = createAudioResource(ytProcess.stdout, {
-                inputType: StreamType.Arbitrary,
+            console.log(`[MusicPlayer] 🎵 Streaming (play-dl): ${track.url}`);
+            
+            const stream = await play.stream(track.url, { discordPlayerCompatibility: true });
+            
+            const resource = createAudioResource(stream.stream, {
+                inputType: stream.type,
                 inlineVolume: true
-            });
-
-            // Capture stderr for diagnostics
-            ytProcess.on('error', (err) => console.error('[MusicPlayer] yt-dlp process error:', err));
-            ytProcess.stderr?.on('data', (data: Buffer) => {
-                const msg = data.toString();
-                stderrBuffer += msg;
-                // Avoid logging Errno 22 as a warning
-                if (msg.includes('ERROR:') && !msg.includes('Errno 22')) {
-                    console.warn('[MusicPlayer] yt-dlp stderr:', msg.trim());
-                }
             });
 
             // Resource-level error handling
             resource.playStream.on('error', (error) => {
                 console.error(`[MusicPlayer] Resource stream error for ${track.url}:`, error);
-                if (queue.currentProcess && !queue.currentProcess.killed) {
-                    try { queue.currentProcess.kill(); } catch { }
-                    queue.currentProcess = null;
-                }
                 this.onTrackEnd(guildId, true);
             });
 
@@ -300,7 +245,7 @@ export class MusicPlayer {
             queue.player?.play(resource);
             queue.consecutiveErrors = 0; // Reset error counter on successful playback start
 
-            console.log(`[MusicPlayer] ✅ Piped Playback started: ${track.title}`);
+            console.log(`[MusicPlayer] ✅ Playback started: ${track.title}`);
 
             // Render Now Playing UI
             if (track.artistName && track.trackTitle) {
