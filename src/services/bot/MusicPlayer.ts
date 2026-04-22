@@ -262,11 +262,10 @@ export class MusicPlayer {
             // Build yt-dlp args to bypass YouTube bot detection
             const ytdlArgs: any = {
                 output: '-',
-                format: 'bestaudio/best',
+                format: 'bestaudio*',
                 noCheckCertificates: true,
                 noWarnings: true,
                 noPlaylist: true,
-                preferFreeFormats: true,
                 rmCacheDir: true,
                 addHeader: [
                     'referer:youtube.com',
