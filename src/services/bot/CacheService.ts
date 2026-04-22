@@ -1,7 +1,7 @@
 import IORedis from 'ioredis';
 import { LoggerService } from './LoggerService';
 
-const REDIS_URL = process.env.REDIS_URL || '';
+const REDIS_URL = process.env.REDIS_URL?.replace(/^["']|["']$/g, '') || '';
 
 export class CacheService {
     private static redis: IORedis | null = REDIS_URL ? new IORedis(REDIS_URL) : null;

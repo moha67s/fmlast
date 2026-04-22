@@ -5,7 +5,7 @@ import { CrownService } from './CrownService';
 import IORedis from 'ioredis';
 import { LoggerService } from './LoggerService';
 
-const REDIS_URL = process.env.REDIS_URL || '';
+const REDIS_URL = process.env.REDIS_URL?.replace(/^["']|["']$/g, '') || '';
 
 if (!REDIS_URL) {
     console.warn("⚠️ REDIS_URL is missing. Background indexing will not start.");
