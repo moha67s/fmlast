@@ -16,6 +16,22 @@ import youtubedl, { exec as ytdlExec } from 'youtube-dl-exec';
 import { VoiceChannel, TextChannel } from 'discord.js';
 import { ScrobbleService } from './ScrobbleService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
+import fs from 'fs';
+import path from 'path';
+
+const COOKIES_FILE = path.join(process.cwd(), 'cookies.txt');
+
+// If the file doesn't exist but the env var is provided, write it
+if (!fs.existsSync(COOKIES_FILE) && process.env.YOUTUBE_COOKIES) {
+    try {
+        // Replace literal \n with actual newlines if it was pasted as a single line
+        const cookieContent = process.env.YOUTUBE_COOKIES.replace(/\\n/g, '\n');
+        fs.writeFileSync(COOKIES_FILE, cookieContent, 'utf-8');
+        console.log('[MusicPlayer] Successfully created cookies.txt from environment variable.');
+    } catch (err) {
+        console.error('[MusicPlayer] Failed to write cookies.txt from env:', err);
+    }
+}
 
 export interface GuildQueue {
     textChannel: TextChannel;
@@ -244,7 +260,7 @@ export class MusicPlayer {
             console.log(`[MusicPlayer] 🎵 Piped Streaming (yt-dlp): ${streamUrl}`);
 
             // Build yt-dlp args to bypass YouTube bot detection
-            const ytProcess = ytdlExec(streamUrl, {
+            const ytdlArgs: any = {
                 output: '-',
                 format: 'bestaudio/best',
                 noCheckCertificates: true,
@@ -257,8 +273,15 @@ export class MusicPlayer {
                 addHeader: [
                     'referer:youtube.com',
                     'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-                ],
-            }, { stdio: ['ignore', 'pipe', 'pipe'] });
+                ]
+            };
+
+            if (fs.existsSync(COOKIES_FILE)) {
+                ytdlArgs.cookies = COOKIES_FILE;
+                console.log(`[MusicPlayer] 🍪 Using cookies.txt for authentication`);
+            }
+
+            const ytProcess = ytdlExec(streamUrl, ytdlArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
             // Catch the promise rejection when the process is killed (SIGTERM = intentional skip/stop)
             // Code 1 = YouTube blocked us — send a helpful message and advance the queue.
