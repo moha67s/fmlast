@@ -265,11 +265,9 @@ export class MusicPlayer {
                 format: 'bestaudio/best',
                 noCheckCertificates: true,
                 noWarnings: true,
-                youtubeSkipDashManifest: true,
                 noPlaylist: true,
                 preferFreeFormats: true,
                 rmCacheDir: true,
-                extractorArgs: 'youtube:player_client=android',
                 addHeader: [
                     'referer:youtube.com',
                     'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
