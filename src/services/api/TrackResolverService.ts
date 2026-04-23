@@ -33,7 +33,7 @@ export class TrackResolverService {
     static async resolve(artistName: string, trackName: string, forceRefresh = false, albumHint?: string): Promise<ResolvedTrack> {
         const query = `${artistName} - ${trackName}`.toLowerCase().trim();
         // Add a version salt to the cache key to allow global cache busting when logic changes
-        const cacheKey = `utr:v3:resolve:${Buffer.from(query).toString('base64')}`;
+        const cacheKey = `utr:v11:resolve:${Buffer.from(query).toString('base64')}`;
 
         // 1. Check Redis Cache (Skip if forceRefresh is true)
         if (!forceRefresh) {
@@ -48,7 +48,7 @@ export class TrackResolverService {
         //     and only fetch track-specific data (links, preview, etc.)
         let cachedAlbumCover: string | null = null;
         if (albumHint) {
-            const albumCoverKey = `utr:cover:${Buffer.from(`${artistName.toLowerCase()}:${albumHint.toLowerCase()}`).toString('base64')}`;
+            const albumCoverKey = `utr:cover:v11:${Buffer.from(`${artistName.toLowerCase()}:${albumHint.toLowerCase()}`).toString('base64')}`;
             cachedAlbumCover = await CacheService.get<string>(albumCoverKey) || null;
             if (cachedAlbumCover) {
                 LoggerService.utrAlbumHit(artistName, albumHint);
@@ -119,7 +119,7 @@ export class TrackResolverService {
 
         // 5b. Write-through: store the album cover separately for future tracks on the same album
         if (artworkUrl && album) {
-            const albumCoverKey = `utr:cover:${Buffer.from(`${artist.toLowerCase()}:${album.toLowerCase()}`).toString('base64')}`;
+            const albumCoverKey = `utr:cover:v11:${Buffer.from(`${artist.toLowerCase()}:${album.toLowerCase()}`).toString('base64')}`;
             await CacheService.set(albumCoverKey, artworkUrl, this.CACHE_TTL);
         }
 
@@ -167,8 +167,8 @@ export class TrackResolverService {
         source: string 
     }> {
         const query = `album:${artistName} - ${albumName}`.toLowerCase().trim();
-        // v3: bumped to flush incorrect results from v2
-        const cacheKey = `utr:album:v3:${Buffer.from(query).toString('base64')}`;
+        // v11: bumped to flush incorrect results
+        const cacheKey = `utr:album:v11:${Buffer.from(query).toString('base64')}`;
 
         const cached = await CacheService.get<any>(cacheKey);
         if (cached) return cached;

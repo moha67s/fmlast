@@ -299,26 +299,45 @@ export default class ChartCommand extends BaseCommand {
 
         const templateData: any = { width, height, gridSize, albums: [] };
         
-        // Parallelize artwork resolution for maximum speed
-        const albumDataPromises = albums.slice(0, needed).map(async (album, index) => {
-            const artistName = album?.artist?.name || album?.artist?.['#text'] || '';
-            const fallbackUrl = album?.image?.find((img: any) => img.size === 'extralarge' || img.size === 'mega')?.['#text'] || album?.image?.[0]?.['#text'];
-            
-            const res = await TrackResolverService.resolveAlbum(artistName, album.name);
-            const imgUrl = res.artworkUrl || fallbackUrl;
-            
-            if (!imgUrl && skipNoImage) return null;
-            
-            return {
-                rank: index + 1,
-                name: album.name,
-                artist: artistName,
-                imageUrl: imgUrl
-            };
-        });
+        // process in batches of 3 to avoid slamming APIs and hitting 429s
+        const resolvedAlbums: any[] = [];
+        const CHUNK_SIZE = 3;
+        const albumSlice = albums.slice(0, needed);
+        
+        for (let i = 0; i < albumSlice.length; i += CHUNK_SIZE) {
+            const chunk = albumSlice.slice(i, i + CHUNK_SIZE);
+            const chunkResults = await Promise.all(chunk.map(async (album, index) => {
+                const globalIndex = i + index;
+                const artistName = album?.artist?.name || album?.artist?.['#text'] || '';
+                
+                // 1. Try resolving via external APIs (Album Search)
+                let res = await TrackResolverService.resolveAlbum(artistName, album.name).catch(() => null);
+                
+                // 2. If album search failed, try a loose track search as a last-resort fallback
+                // (Often albums on LFM are actually singles, and track search is more robust)
+                if (!res?.artworkUrl) {
+                    const trackRes = await TrackResolverService.resolve(artistName, album.name).catch(() => null);
+                    if (trackRes?.artworkUrl) {
+                        res = { ...res, artworkUrl: trackRes.artworkUrl } as any;
+                    }
+                }
 
-        const resolvedAlbums = await Promise.all(albumDataPromises);
-        templateData.albums = resolvedAlbums.filter(a => a !== null);
+                const fallbackUrl = album?.image?.find((img: any) => img.size === 'extralarge' || img.size === 'mega')?.['#text'] || album?.image?.[0]?.['#text'];
+                const imgUrl = res?.artworkUrl || fallbackUrl;
+                
+                if (!imgUrl && skipNoImage) return null;
+                
+                return {
+                    rank: globalIndex + 1,
+                    name: album.name,
+                    artist: artistName,
+                    imageUrl: imgUrl
+                };
+            }));
+            resolvedAlbums.push(...chunkResults.filter(a => a !== null));
+        }
+
+        templateData.albums = resolvedAlbums;
         
         return await PuppeteerService.render('chart_grid', templateData, { width, height });
     }

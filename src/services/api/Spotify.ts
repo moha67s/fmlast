@@ -46,7 +46,8 @@ export class Spotify {
         
         // Allow for common suffixes like "Remastered", "Deluxe", "Expanded"
         // provided the root name is an exact match.
-        if (a.startsWith(e) && a.length < e.length + 15) return true;
+        if (a.startsWith(e) && a.length < e.length + 20) return true;
+        if (e.startsWith(a) && e.length < a.length + 20) return true;
         
         return false;
     }
@@ -346,12 +347,13 @@ export class Spotify {
     }> {
         if (this.isDisabled()) return { coverUrl: null, albumType: null, releaseYear: null };
 
-        const cacheKey = `sp:meta:al:${artistName.toLowerCase()}:${albumName.toLowerCase()}`;
+        const cacheKey = `sp:meta:al:v11:${artistName.toLowerCase()}:${albumName.toLowerCase()}`;
         return CacheService.wrap(cacheKey, 604800, async () => {
             try {
                 const token = await this.getToken();
 
-                const { data } = await axios.get('https://api.spotify.com/v1/search', {
+                // 1. Strict Search
+                let res = await axios.get('https://api.spotify.com/v1/search', {
                     headers: { Authorization: `Bearer ${token}` },
                     params: {
                         q: `album:"${albumName}" artist:"${artistName}"`,
@@ -360,11 +362,28 @@ export class Spotify {
                     },
                 });
 
-                const albums = data.albums?.items || [];
-                const album = albums.find((a: any) =>
+                let albums = res.data.albums?.items || [];
+                let album = albums.find((a: any) =>
                     this.validateTitle(albumName, a.name) &&
                     a.artists?.some((artist: any) => this.validateArtist(artistName, artist.name))
                 );
+
+                // 2. Looser Fallback Search
+                if (!album) {
+                    res = await axios.get('https://api.spotify.com/v1/search', {
+                        headers: { Authorization: `Bearer ${token}` },
+                        params: {
+                            q: `"${albumName}" "${artistName}"`,
+                            type: 'album',
+                            limit: 5,
+                        },
+                    });
+                    albums = res.data.albums?.items || [];
+                    album = albums.find((a: any) =>
+                        this.validateTitle(albumName, a.name) &&
+                        a.artists?.some((artist: any) => this.validateArtist(artistName, artist.name))
+                    );
+                }
 
                 return {
                     coverUrl: album?.images?.[0]?.url || null,

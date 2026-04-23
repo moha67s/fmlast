@@ -246,7 +246,7 @@ export class LastFM {
                 playcount: a.playcount,
                 mbid: a.mbid,
                 url: a.url,
-                image: []
+                image: a.image || []
             }));
         });
     }
