@@ -80,8 +80,7 @@ export default class RadioCommand extends BaseCommand {
         }
 
         if (isSlash) {
-            if (interactionOrMessage.isButton?.()) await interactionOrMessage.deferUpdate();
-            else await interactionOrMessage.deferReply();
+            await interactionOrMessage.deferReply();
         }
 
         try {
@@ -154,8 +153,17 @@ export default class RadioCommand extends BaseCommand {
                 return builder.build();
             };
 
+            const isReroll = interactionOrMessage.isButton?.();
             const send = async (payload: any) => {
-                isSlash ? await interactionOrMessage.editReply(payload) : await interactionOrMessage.channel.send(payload);
+                if (isSlash) {
+                    if (isReroll) {
+                        await interactionOrMessage.followUp(payload);
+                    } else {
+                        await interactionOrMessage.editReply(payload);
+                    }
+                } else {
+                    await interactionOrMessage.channel.send(payload);
+                }
             };
 
             // ══════════ ENGINE 1: SPOTIFY (primary) ══════════════════════
