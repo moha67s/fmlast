@@ -304,7 +304,7 @@ export class MusicPlayer {
                     .filter(l => l.includes('ERROR') || l.includes('error'))
                     .slice(0, 3).join('\n');
 
-                if (errorLines.includes('Sign in') || errorLines.includes('age') || errorLines.includes('unavailable')) {
+                if (errorLines.includes('Sign in') || errorLines.includes('age') || errorLines.includes('unavailable') || errorLines.includes('format')) {
                     if (!streamUrl.startsWith('scsearch1:')) {
                         // Mark for fallback. The pipe will close, triggering Idle, which calls onTrackEnd
                         queue.isFallingBack = true;
