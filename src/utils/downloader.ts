@@ -188,7 +188,7 @@ export async function createAuraVideo(imagePath: string, audioUrl: string, track
   });
   console.log(`[aura] Converted image to PNG: ${pngPath}`);
 
-  // Step 2: Create video from png + audio
+  // Step 2: Create video from png + audio (memory-optimized for Railway)
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(pngPath)
@@ -196,15 +196,18 @@ export async function createAuraVideo(imagePath: string, audioUrl: string, track
       .input(audioPath)
       .outputOptions([
         "-c:v libx264",
+        "-preset ultrafast",
         "-tune stillimage",
+        "-crf 28",
         "-c:a aac",
-        "-b:a 192k",
+        "-b:a 128k",
         "-pix_fmt yuv420p",
         "-shortest",
-        "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2",
-        "-movflags +faststart"
+        "-vf scale=720:720",
+        "-movflags +faststart",
+        "-threads 1"
       ])
-      .duration(30)
+      .duration(15)
       .output(videoPath)
       .on("end", () => resolve(true))
       .on("error", (err: any) => {
