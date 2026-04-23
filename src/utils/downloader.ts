@@ -207,7 +207,7 @@ export async function createAuraVideo(imagePath: string, audioUrl: string, track
         "-movflags +faststart",
         "-threads 1"
       ])
-      .duration(15)
+      .duration(30)
       .output(videoPath)
       .on("end", () => resolve(true))
       .on("error", (err: any) => {
