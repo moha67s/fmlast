@@ -58,7 +58,6 @@ export interface GuildQueue {
     isPaused: boolean;
     currentProcess: any | null;
     consecutiveErrors: number;
-    isFallingBack?: boolean;
     currentResource: any | null;
 }
 
@@ -252,21 +251,11 @@ export class MusicPlayer {
         }
 
         const track = queue.tracks[0];
-        let streamUrl = track.url;
-
-        if (queue.isFallingBack) {
-            // Consume the fallback flag so it doesn't loop
-            queue.isFallingBack = false;
-            const scQuery = track.artistName && track.trackTitle
-                ? `${track.artistName} ${track.trackTitle}`
-                : track.title;
-            streamUrl = `scsearch1:${scQuery}`;
-            queue.textChannel.send(`⚠️ **YouTube blocked this server's IP!** Rerouting audio through SoundCloud for \`${track.title}\`...`).catch(() => { });
-        }
+        const streamUrl = track.url;
 
         if (!streamUrl) {
             queue.textChannel.send(`❌ Missing URL for: **${track.title}**`);
-            this.onTrackEnd(guildId, true);
+            MusicPlayer.onTrackEnd(guildId, true);
             return;
         }
 
@@ -274,7 +263,7 @@ export class MusicPlayer {
             queue.isPlaying = true;
             let stderrBuffer = '';
 
-            console.log(`[MusicPlayer] 🎵 Playing: ${track.title} (Hybrid Engine: old-flags + cookies)`);
+            console.log(`[MusicPlayer] 🎵 Playing: ${track.title} (Direct YouTube Engine)`);
 
             // Combined logic: Old-school bypass flags + Modern Cookies + bestaudio*
             const ytdlArgs: any = {
@@ -303,20 +292,15 @@ export class MusicPlayer {
                 if (err.signal === 'SIGTERM' || err.message?.includes('SIGTERM')) return;
                 const fullError = (err.stderr || stderrBuffer || err.message || '').toLowerCase();
 
-                if (fullError.includes('sign in') || fullError.includes('age') || fullError.includes('unavailable')) {
-                    if (!streamUrl.startsWith('scsearch1:')) {
-                        console.log(`[MusicPlayer] 🔄 YouTube block. Silent fallback triggered.`);
-                        queue.isFallingBack = true;
-                        if (queue.currentProcess === ytProcess) {
-                            queue.currentProcess = null;
-                            MusicPlayer.onTrackEnd(guildId);
-                        }
-                        return;
-                    }
+                console.error('[MusicPlayer] YouTube Error:', fullError.substring(0, 300));
+                
+                if (fullError.includes('sign in')) {
+                    queue.textChannel.send(`❌ **YouTube Blocked**: Sign-in required for \`${track.title}\`. Your cookies might be expired.`).catch(() => { });
+                } else {
+                    queue.textChannel.send(`❌ **YouTube Error**: Could not stream \`${track.title}\`.`).catch(() => { });
                 }
 
                 if (queue.currentProcess === ytProcess) {
-                    console.error('[MusicPlayer] Stream failed:', fullError.substring(0, 150));
                     queue.currentProcess = null;
                     MusicPlayer.onTrackEnd(guildId, true);
                 }
@@ -385,12 +369,6 @@ export class MusicPlayer {
     private static onTrackEnd(guildId: string, error = false) {
         const queue = this.queues.get(guildId);
         if (!queue) return;
-
-        if (queue.isFallingBack) {
-            queue.isPlaying = false;
-            MusicPlayer.processQueue(guildId);
-            return;
-        }
 
         if (error) {
             queue.consecutiveErrors++;
