@@ -21,23 +21,7 @@ import path from 'path';
 
 const COOKIES_FILE = path.join(process.cwd(), 'cookies.txt');
 
-// Immortal Proxy List (WebShare)
-const PROXY_LIST = [
-    'http://jgwncugf:0h41yf9sx1zj@31.59.20.176:6754',
-    'http://jgwncugf:0h41yf9sx1zj@198.23.239.134:6540',
-    'http://jgwncugf:0h41yf9sx1zj@45.38.107.97:6014',
-    'http://jgwncugf:0h41yf9sx1zj@107.172.163.27:6543',
-    'http://jgwncugf:0h41yf9sx1zj@198.105.121.200:6462',
-    'http://jgwncugf:0h41yf9sx1zj@216.10.27.159:6837',
-    'http://jgwncugf:0h41yf9sx1zj@142.111.67.146:5611',
-    'http://jgwncugf:0h41yf9sx1zj@191.96.254.138:6185',
-    'http://jgwncugf:0h41yf9sx1zj@31.58.9.4:6077',
-    'http://jgwncugf:0h41yf9sx1zj@104.239.107.47:5699'
-];
 
-function getRandomProxy() {
-    return PROXY_LIST[Math.floor(Math.random() * PROXY_LIST.length)];
-}
 
 // Always (re)create cookies.txt from env var on every boot to ensure freshness
 if (process.env.YOUTUBE_COOKIES) {
@@ -287,46 +271,10 @@ export class MusicPlayer {
         try {
             queue.isPlaying = true;
             let stderrBuffer = '';
-            const useProxy = streamUrl.includes('youtube.com') || streamUrl.includes('youtu.be');
-            const selectedProxy = getRandomProxy();
 
-            console.log(`[MusicPlayer] 🎵 Streaming: ${track.title} ${useProxy ? '(via Proxy Handshake)' : '(Direct)'}`);
+            console.log(`[MusicPlayer] 🎵 Streaming (Cookies Only): ${track.title}`);
 
-            // 1. DATA-SAVER HANDSHAKE: Get the direct audio URL using the proxy
-            let finalStreamUrl = streamUrl;
-            let proxyToUse: string | undefined = undefined;
-
-            if (useProxy) {
-                try {
-                    const handshakeArgs: any = {
-                        getUrl: true,
-                        format: 'bestaudio*',
-                        noCheckCertificates: true,
-                        proxy: selectedProxy,
-                        quiet: true,
-                        noWarnings: true
-                    };
-                    if (fs.existsSync(COOKIES_FILE)) handshakeArgs.cookies = COOKIES_FILE;
-
-                    console.log(`[MusicPlayer] 🤝 Handshake via ${selectedProxy.split('@')[1]}`);
-                    
-                    // Run handshake with a 10s timeout to avoid hanging
-                    const resolved = await ytdlExec(streamUrl, handshakeArgs);
-                    
-                    if (resolved && typeof resolved === 'string') {
-                        finalStreamUrl = resolved.trim();
-                        console.log(`[MusicPlayer] ✅ Handshake successful (Data Saver Active)`);
-                    }
-                } catch (err: any) {
-                    // Try to extract a clean error message
-                    const errMsg = err.stderr || err.message || 'Unknown error';
-                    console.warn(`[MusicPlayer] ⚠️ Handshake failed: ${errMsg.substring(0, 100)}...`);
-                    console.log(`[MusicPlayer] 🔄 Falling back to Full Proxy Mode for this track.`);
-                    proxyToUse = selectedProxy; 
-                }
-            }
-
-            // 2. STREAMING: Start yt-dlp to pipe the audio
+            // Build yt-dlp args
             const ytdlArgs: any = {
                 output: '-',
                 format: 'bestaudio*',
@@ -341,16 +289,11 @@ export class MusicPlayer {
                 ]
             };
 
-            if (proxyToUse) {
-                ytdlArgs.proxy = proxyToUse;
-                console.log(`[MusicPlayer] 🔄 Full Proxy Mode: Streaming through ${proxyToUse.split('@')[1]}`);
-            }
-
             if (fs.existsSync(COOKIES_FILE)) {
                 ytdlArgs.cookies = COOKIES_FILE;
             }
 
-            const ytProcess = ytdlExec(finalStreamUrl, ytdlArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+            const ytProcess = ytdlExec(streamUrl, ytdlArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
             // Catch the promise rejection when the process is killed (SIGTERM = intentional skip/stop)
             // Code 1 = YouTube blocked us — send a helpful message and advance the queue.
