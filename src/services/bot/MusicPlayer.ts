@@ -277,7 +277,7 @@ export class MusicPlayer {
             // Build yt-dlp args
             const ytdlArgs: any = {
                 output: '-',
-                format: 'bestaudio*',
+                format: 'bestaudio/best',
                 noCheckCertificates: true,
                 noWarnings: true,
                 noPlaylist: true,
