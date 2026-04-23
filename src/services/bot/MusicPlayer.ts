@@ -21,6 +21,24 @@ import path from 'path';
 
 const COOKIES_FILE = path.join(process.cwd(), 'cookies.txt');
 
+// Immortal Proxy List (WebShare)
+const PROXY_LIST = [
+    'http://jgwncugf:0h41yf9sx1zj@31.59.20.176:6754',
+    'http://jgwncugf:0h41yf9sx1zj@198.23.239.134:6540',
+    'http://jgwncugf:0h41yf9sx1zj@45.38.107.97:6014',
+    'http://jgwncugf:0h41yf9sx1zj@107.172.163.27:6543',
+    'http://jgwncugf:0h41yf9sx1zj@198.105.121.200:6462',
+    'http://jgwncugf:0h41yf9sx1zj@216.10.27.159:6837',
+    'http://jgwncugf:0h41yf9sx1zj@142.111.67.146:5611',
+    'http://jgwncugf:0h41yf9sx1zj@191.96.254.138:6185',
+    'http://jgwncugf:0h41yf9sx1zj@31.58.9.4:6077',
+    'http://jgwncugf:0h41yf9sx1zj@104.239.107.47:5699'
+];
+
+function getRandomProxy() {
+    return PROXY_LIST[Math.floor(Math.random() * PROXY_LIST.length)];
+}
+
 // Always (re)create cookies.txt from env var on every boot to ensure freshness
 if (process.env.YOUTUBE_COOKIES) {
     try {
@@ -269,10 +287,38 @@ export class MusicPlayer {
         try {
             queue.isPlaying = true;
             let stderrBuffer = '';
+            const useProxy = streamUrl.includes('youtube.com') || streamUrl.includes('youtu.be');
+            const selectedProxy = getRandomProxy();
 
-            console.log(`[MusicPlayer] 🎵 Piped Streaming (yt-dlp): ${streamUrl}`);
+            console.log(`[MusicPlayer] 🎵 Streaming: ${track.title} ${useProxy ? '(via Proxy Handshake)' : '(Direct)'}`);
 
-            // Build yt-dlp args
+            // 1. DATA-SAVER HANDSHAKE: Get the direct audio URL using the proxy
+            let finalStreamUrl = streamUrl;
+            let proxyToUse: string | undefined = undefined;
+
+            if (useProxy) {
+                try {
+                    const handshakeArgs: any = {
+                        getUrl: true,
+                        format: 'bestaudio*',
+                        noCheckCertificates: true,
+                        proxy: selectedProxy
+                    };
+                    if (fs.existsSync(COOKIES_FILE)) handshakeArgs.cookies = COOKIES_FILE;
+
+                    console.log(`[MusicPlayer] 🤝 Handshake via ${selectedProxy.split('@')[1]}`);
+                    const resolved = await ytdlExec(streamUrl, handshakeArgs);
+                    if (resolved && typeof resolved === 'string') {
+                        finalStreamUrl = resolved.trim();
+                        console.log(`[MusicPlayer] ✅ Handshake successful`);
+                    }
+                } catch (err: any) {
+                    console.warn(`[MusicPlayer] ⚠️ Handshake failed, falling back to direct/proxy stream:`, err.message);
+                    proxyToUse = selectedProxy; // Fallback to full proxy if handshake fails
+                }
+            }
+
+            // 2. STREAMING: Start yt-dlp to pipe the audio
             const ytdlArgs: any = {
                 output: '-',
                 format: 'bestaudio*',
@@ -287,12 +333,16 @@ export class MusicPlayer {
                 ]
             };
 
-            if (fs.existsSync(COOKIES_FILE)) {
-                ytdlArgs.cookies = COOKIES_FILE;
-                console.log(`[MusicPlayer] 🍪 Using cookies.txt for authentication`);
+            if (proxyToUse) {
+                ytdlArgs.proxy = proxyToUse;
+                console.log(`[MusicPlayer] 🔄 Full Proxy Mode: Streaming through ${proxyToUse.split('@')[1]}`);
             }
 
-            const ytProcess = ytdlExec(streamUrl, ytdlArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+            if (fs.existsSync(COOKIES_FILE)) {
+                ytdlArgs.cookies = COOKIES_FILE;
+            }
+
+            const ytProcess = ytdlExec(finalStreamUrl, ytdlArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
             // Catch the promise rejection when the process is killed (SIGTERM = intentional skip/stop)
             // Code 1 = YouTube blocked us — send a helpful message and advance the queue.
