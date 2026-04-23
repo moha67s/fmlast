@@ -172,11 +172,26 @@ export async function getAudioSignalAndSr(trackId: string, url: string): Promise
 
 export async function createAuraVideo(imagePath: string, audioUrl: string, trackId: string): Promise<string> {
   const audioPath = await downloadMP3(audioUrl, trackId);
+  const pngPath = path.join(tempDir, `${trackId}_frame.png`);
   const videoPath = path.join(tempDir, `${trackId}.mp4`);
 
+  // Step 1: Convert webp → png (Railway's FFmpeg may not support webp as video input)
+  await new Promise((resolve, reject) => {
+    ffmpeg(imagePath)
+      .output(pngPath)
+      .on("end", () => resolve(true))
+      .on("error", (err: any) => {
+        console.error('[aura] FFmpeg webp→png conversion failed:', err.message);
+        reject(err);
+      })
+      .run();
+  });
+  console.log(`[aura] Converted image to PNG: ${pngPath}`);
+
+  // Step 2: Create video from png + audio
   await new Promise((resolve, reject) => {
     ffmpeg()
-      .input(imagePath)
+      .input(pngPath)
       .inputOptions(["-loop 1"])
       .input(audioPath)
       .outputOptions([
@@ -186,16 +201,21 @@ export async function createAuraVideo(imagePath: string, audioUrl: string, track
         "-b:a 192k",
         "-pix_fmt yuv420p",
         "-shortest",
-        "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-movflags +faststart"
       ])
       .duration(30)
       .output(videoPath)
       .on("end", () => resolve(true))
-      .on("error", (err: any) => reject(err))
+      .on("error", (err: any) => {
+        console.error('[aura] FFmpeg video creation failed:', err.message);
+        reject(err);
+      })
       .run();
   });
 
   await fsp.unlink(audioPath).catch(() => { });
+  await fsp.unlink(pngPath).catch(() => { });
   return videoPath;
 }
 
