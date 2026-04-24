@@ -517,10 +517,13 @@ export class Youtube {
             '--no-progress',
             '--no-check-certificates',
             '--buffer-size', '512K',
+            '--http-chunk-size', '1M', // Hardens against throttling on long videos
             '-N', String(YTDLP_CONCURRENT_FRAGMENTS),
             '--throttled-rate', YTDLP_THROTTLED_RATE,
-            '-R', '3',
-            '--socket-timeout', '15',
+            '-R', '5', // Increased retries
+            '--fragment-retries', '5',
+            '--file-access-retries', '5',
+            '--socket-timeout', '30', // Increased timeout for stability
             '--extractor-retries', '3',
             '--force-ipv4',
             '--ignore-config',
