@@ -268,12 +268,10 @@ export class MusicPlayer {
             // Combined logic: Old-school bypass flags + Modern Cookies + bestaudio*
             const ytdlArgs: any = {
                 output: '-',
-                format: 'bestaudio*',
+                format: 'bestaudio/best',
                 noCheckCertificates: true,
                 noWarnings: true,
                 noPlaylist: true,
-                rmCacheDir: true,
-                preferFreeFormats: true,
                 addHeader: [
                     'referer:youtube.com',
                     'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
