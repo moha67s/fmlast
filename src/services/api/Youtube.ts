@@ -48,16 +48,59 @@ const FFMPEG_PROBE_SIZE_TRANSCODE = 131_072;
 const FFMPEG_ANALYZE_DURATION_TRANSCODE = 200_000;
 const PASS_THROUGH_BUFFER_SIZE = 2 * 1024 * 1024;
 const YTDLP_CONCURRENT_FRAGMENTS = 4;
-const YTDLP_THROTTLED_RATE = '30K';
+const YTDLP_THROTTLED_RATE = '100K';
 const STREAM_RETRY_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 8_000;
 
-const COOKIES_FILE = join(tmpdir(), `fm2_yt_cookies.txt`);
+const COOKIES_FILE = '/tmp/fm2_yt_cookies.txt';
 
-// Prefer the system-installed Python yt-dlp (pip) over the npm-bundled standalone binary.
-// The npm binary CANNOT load external Python plugins (like the PO Token provider).
-// The pip-installed binary CAN, which is critical for Railway where we need PO Tokens.
+function ensureCookiesFile(): void {
+    const raw = process.env.YOUTUBE_COOKIES || process.env.YOUTUBE_COOKIE;
+    if (!raw) return;
+    
+    // If it exists and is not empty, we are good
+    if (existsSync(COOKIES_FILE)) return;
+
+    try {
+        let content = raw.replace(/^["']|["']$/g, '').trim();
+
+        if (content.startsWith('# Netscape')) {
+            // Re-parse and re-write to guarantee real tab characters,
+            // since Railway env vars often convert \t → spaces
+            const lines = content.split('\n').map(line => {
+                if (line.startsWith('#') || line.trim() === '') return line;
+                // Split on any whitespace (handles both tabs and spaces from env var)
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 7) {
+                    // Rejoin with real tabs: domain, flag, path, secure, expiry, name, value
+                    // Value may contain spaces/= so rejoin tail
+                    const [domain, flag, path, secure, expiry, name, ...valueParts] = parts;
+                    return [domain, flag, path, secure, expiry, name, valueParts.join('')].join('\t');
+                }
+                return line;
+            });
+            content = lines.join('\n');
+        } else {
+            // Raw key=value format — build from scratch
+            const lines = ['# Netscape HTTP Cookie File'];
+            for (const part of content.split(';')) {
+                const eq = part.indexOf('=');
+                if (eq < 0) continue;
+                const name = part.slice(0, eq).trim();
+                const value = part.slice(eq + 1).trim();
+                if (name) lines.push(`.youtube.com\tTRUE\t/\tFALSE\t0\t${name}\t${value}`);
+            }
+            content = lines.join('\n');
+        }
+
+        writeFileSync(COOKIES_FILE, content, { mode: 0o600 });
+        console.log('[Youtube] Cookies file written with proper tab formatting');
+    } catch (err) {
+        console.error('[Youtube] Failed to ensure cookies file:', err);
+    }
+}
+
 let ytdlpBinary = 'yt-dlp';
 const systemYtdlp = '/usr/local/bin/yt-dlp';
 if (existsSync(systemYtdlp)) {
@@ -71,21 +114,59 @@ if (existsSync(systemYtdlp)) {
     }
 }
 
+// --- Startup Diagnostic ---
+try {
+    const versionCheck = spawnSync(ytdlpBinary, ['--version'], { encoding: 'utf8' });
+    console.log(`[Youtube] yt-dlp version: ${versionCheck.stdout?.trim()}`);
+
+    // Check if bgutil plugin is loaded by passing dummy args and checking for errors
+    const potCheck = spawnSync(ytdlpBinary, 
+        ['--extractor-args', 'youtubepot-bgutilhttp:base_url=http://test', '-v', '--help'],
+        { encoding: 'utf8' }
+    );
+    const pluginLoaded = potCheck.stderr?.includes('bgutil') || potCheck.stdout?.includes('bgutil');
+    console.log(`[Youtube] bgutil PO token plugin loaded: ${pluginLoaded}`);
+} catch (err) {
+    console.warn('[Youtube] Startup diagnostic failed:', err);
+}
+
+// Log cookie status at startup
+const startupCookie = process.env.YOUTUBE_COOKIES || process.env.YOUTUBE_COOKIE;
+if (startupCookie) {
+    const hasAuthCookie = startupCookie.includes('SAPISID') || startupCookie.includes('__Secure-3PAPISID');
+    console.log(`[Youtube] Cookie env var present: true, length: ${startupCookie.length}, Has SAPISID: ${hasAuthCookie}`);
+} else {
+    console.log(`[Youtube] Cookie env var present: false`);
+}
+ensureCookiesFile();
+
+// Verify cookie tab formatting
+try {
+    if (existsSync(COOKIES_FILE)) {
+        const cookieFileContent = require('fs').readFileSync(COOKIES_FILE, 'utf8');
+        const firstDataLine = cookieFileContent.split('\n').find((l: string) => l.startsWith('.youtube.com'));
+        const hasRealTabs = firstDataLine?.includes('\t');
+        console.log(`[Youtube] Cookie file tab check: ${hasRealTabs ? '✓ tabs OK' : '⚠️ NO TABS — file is BROKEN'}`);
+    }
+} catch (err) {}
+
 let ffmpegBinary = 'ffmpeg';
 if (typeof ffmpegStatic === 'string') {
     ffmpegBinary = ffmpegStatic;
 }
 
 const CLIENT_ROTATION: readonly string[] = [
-    'android,tv_simply,mweb,ios',
-    'tv_simply,mweb,android,ios',
-    'mweb,tv_simply,android,ios',
+    'tv_simply,android,ios',
+    'android,tv_simply,ios',
+    'ios,android,tv_simply',
 ];
 
+// On Railway, tv_simply is the most reliable client.
+// We rotate to others if it fails or is throttled.
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
-    'ios,android,mweb',   // attempt 1 — ios/android don't trigger webpage bot-check
-    'android,ios,mweb',   // attempt 2
-    'mweb,ios,android',   // attempt 3
+    'tv_simply,ios,android',   // Attempt 1: King of Bypass (try Copy Mode)
+    'ios,android,tv_simply',   // Attempt 2: Most reliable (Transcode Fallback)
+    'tv_simply,ios,android',   // Attempt 3: Mobile web fallback
 ];
 
 function getPlayerClients(attempt = 1): string {
@@ -95,12 +176,22 @@ function getPlayerClients(attempt = 1): string {
 }
 
 function getAuthFlags(attempt = 1): string[] {
+    ensureCookiesFile(); // Guarantee file exists before any flags are generated
+
     const youtubeArgs: string[] = [`player_client=${getPlayerClients(attempt)}`];
 
     if (config.YT_VISITOR_DATA) {
         youtubeArgs.push(`visitor_data=${config.YT_VISITOR_DATA}`);
-        // ALWAYS skip webpage on Railway — fetching it from a datacenter IP
-        // triggers an instant "Sign in" block from YouTube.
+    }
+
+    // IMPORTANT: On Railway, fetching the webpage for mobile/TV clients 
+    // triggers an instant 403 "Sign in" block. We MUST skip it.
+    // HOWEVER: If we have a PO Token server, we MUST NOT skip it, because
+    // the plugin needs the webpage to generate the token!
+    const clients = getPlayerClients(attempt);
+    const isWebClient = clients.includes('web') || clients.includes('default');
+    
+    if (!isWebClient && !config.POTOKEN_SERVER) {
         youtubeArgs.push('player_skip=webpage,configs');
     }
 
@@ -109,13 +200,35 @@ function getAuthFlags(attempt = 1): string[] {
     if (config.POTOKEN_SERVER) {
         // The bgutil PO Token plugin (installed via pip) auto-loads.
         // We just need to tell it where our Railway token server lives.
-        const baseUrl = config.POTOKEN_SERVER.replace(/\/$/, '');
+        let baseUrl = config.POTOKEN_SERVER.replace(/\/$/, '');
+        
+        // Defensive: ensure scheme is present
+        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+            baseUrl = `https://${baseUrl}`;
+            console.warn(`[Youtube] ⚠️ POTOKEN_SERVER was missing https://, auto-corrected to: ${baseUrl}`);
+        }
+
         flags.push('--extractor-args', `youtubepot-bgutilhttp:base_url=${baseUrl}`);
-        console.log(`[Youtube] PO Token Provider → ${baseUrl}`);
+        console.log(`[Youtube] getAuthFlags: Linking PO Token Provider → ${baseUrl}`);
+
+        // Background check for token server reachability (hit the root)
+        if (attempt === 1) {
+            fetch(baseUrl)
+                .then(r => { 
+                    if (r.status !== 200 && r.status !== 405) { // 405 is fine (method not allowed)
+                        console.warn(`[Youtube] ⚠️ PO Token server (${baseUrl}) returned status ${r.status}`); 
+                    }
+                })
+                .catch(e => console.warn(`[Youtube] ⚠️ PO Token server (${baseUrl}) UNREACHABLE: ${e.message}`));
+        }
     }
 
-    if (existsSync(COOKIES_FILE)) {
+    const cookieExists = existsSync(COOKIES_FILE);
+    if (cookieExists) {
         flags.push('--cookies', COOKIES_FILE);
+        console.log(`[Youtube] getAuthFlags: Using cookies file ✓ (${COOKIES_FILE})`);
+    } else {
+        console.warn(`[Youtube] getAuthFlags: ⚠️ Cookies file NOT found — yt-dlp will run unauthenticated!`);
     }
 
     return flags;
@@ -315,7 +428,7 @@ export class Youtube {
         const sanitizedUrl = url.trim();
 
         for (let attempt = 1; attempt <= STREAM_RETRY_ATTEMPTS; attempt++) {
-            // Always transcode: ios/android serve AAC which can't be muxed into OGG without re-encoding.
+            // Always use transcode mode for maximum reliability on Railway.
             const mode: StreamMode = 'transcode';
             try {
                 const { stream, ready } = this.createYtdlpStream(sanitizedUrl, attempt, mode);
@@ -344,10 +457,10 @@ export class Youtube {
     ): { stream: Readable; ready: Promise<void> } {
         const cookieFlags = getAuthFlags(attempt);
 
-        // Copy mode: prefer Opus (OGG-compatible). AAC cannot be muxed into OGG without transcoding.
-        // Transcode mode: grab anything and re-encode to Opus.
+        // Copy mode: Prefer Opus (251/250). Fallback to anything if Opus is missing.
+        // Transcode mode: Grab anything playable.
         const formatSelector = mode === 'copy'
-            ? 'bestaudio[acodec=opus]/bestaudio'
+            ? 'bestaudio[acodec=opus]/bestaudio[ext=webm][acodec=opus]/251/250/bestaudio/best'
             : 'bestaudio/best';
 
         const ytdlpArgs = [
@@ -375,7 +488,12 @@ export class Youtube {
                 '-analyzeduration', String(FFMPEG_ANALYZE_DURATION_COPY),
                 '-probesize', String(FFMPEG_PROBE_SIZE_COPY),
                 '-i', 'pipe:0',
-                '-vn', '-map', 'a:0', '-c:a', 'copy', '-f', 'ogg', '-loglevel', 'error', 'pipe:1',
+                '-vn', '-map', 'a:0',
+                // For Copy Mode, we try to transcode anyway to be safe (high quality libopus),
+                // as bitstream-copying AAC into OGG is impossible.
+                '-c:a', 'libopus', '-ar', '48000', '-ac', '2', '-b:a', '128k',
+                '-vbr', 'on', '-application', 'audio', '-frame_duration', '20',
+                '-f', 'ogg', '-loglevel', 'error', 'pipe:1',
             ]
             : [
                 '-analyzeduration', String(FFMPEG_ANALYZE_DURATION_TRANSCODE),
