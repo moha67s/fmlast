@@ -71,9 +71,9 @@ if (typeof ffmpegStatic === 'string') {
 }
 
 const CLIENT_ROTATION: readonly string[] = [
-    'tv_simply,mweb,ios',
-    'mweb,tv_simply,ios',
-    'ios,mweb,tv_simply',
+    'tv_simply,mweb,ios,android',
+    'mweb,tv_simply,ios,android',
+    'ios,mweb,tv_simply,android',
 ];
 
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
@@ -90,6 +90,16 @@ function getPlayerClients(attempt = 1): string {
 
 function getAuthFlags(attempt = 1): string[] {
     const youtubeArgs: string[] = [`player_client=${getPlayerClients(attempt)}`];
+
+    if (config.YT_VISITOR_DATA) {
+        // ESSENTIAL FOR RAILWAY:
+        // Skipping the webpage fetch avoids the 429 that strips visitor_data / ytcfg
+        // on flagged cloud IPs. `player_skip=webpage` forces yt-dlp to rely on the
+        // innertube APIs directly, which need visitor_data to be supplied by us.
+        youtubeArgs.push(`visitor_data=${config.YT_VISITOR_DATA}`);
+        youtubeArgs.push('player_skip=webpage,configs');
+    }
+
     const flags: string[] = ['--extractor-args', `youtube:${youtubeArgs.join(';')}`];
 
     if (config.POTOKEN_SERVER) {
