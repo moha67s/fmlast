@@ -98,12 +98,14 @@ function getAuthFlags(attempt = 1): string[] {
     const youtubeArgs: string[] = [`player_client=${getPlayerClients(attempt)}`];
 
     if (config.YT_VISITOR_DATA) {
-        // ESSENTIAL FOR RAILWAY:
-        // Skipping the webpage fetch avoids the 429 that strips visitor_data / ytcfg
-        // on flagged cloud IPs. `player_skip=webpage` forces yt-dlp to rely on the
-        // innertube APIs directly, which need visitor_data to be supplied by us.
         youtubeArgs.push(`visitor_data=${config.YT_VISITOR_DATA}`);
-        youtubeArgs.push('player_skip=webpage,configs');
+
+        if (!config.POTOKEN_SERVER) {
+            // Only skip webpage when there's NO PO Token server.
+            // The PO Token plugin NEEDS the webpage to extract the BotGuard challenge.
+            // Without it, no challenge → no valid token → "Sign in" block.
+            youtubeArgs.push('player_skip=webpage,configs');
+        }
     }
 
     const flags: string[] = ['--extractor-args', `youtube:${youtubeArgs.join(';')}`];
