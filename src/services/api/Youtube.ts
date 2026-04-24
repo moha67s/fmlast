@@ -104,6 +104,10 @@ function getAuthFlags(attempt = 1): string[] {
         // ESSENTIAL: The PO Token provider is a SEPARATE extractor in yt-dlp.
         // We must pass its base_url using its specific prefix.
         flags.push('--extractor-args', `youtubepot-bgutilhttp:base_url=${config.POTOKEN_SERVER}`);
+        
+        // Force yt-dlp to look for the plugin in our project root
+        flags.push('--plugin-dirs', process.cwd());
+        
         console.log(`[Youtube] Linking PO Token Provider: ${config.POTOKEN_SERVER}`);
     }
 
