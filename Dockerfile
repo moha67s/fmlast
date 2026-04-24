@@ -12,7 +12,7 @@ RUN apt-get update \
 
 # Install the REAL yt-dlp (Python) so it can load external plugins
 # Also install the bgutil PO Token provider plugin
-RUN python3 -m pip install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider
+RUN python3 -m pip install --break-system-packages yt-dlp yt-dlp-get-pot bgutil-ytdlp-pot-provider
 
 # Set up working directory
 WORKDIR /usr/src/app

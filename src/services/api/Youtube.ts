@@ -95,6 +95,22 @@ if (existsSync(systemYtdlp)) {
     }
 }
 
+// --- Startup Diagnostic ---
+try {
+    const versionCheck = spawnSync(ytdlpBinary, ['--version'], { encoding: 'utf8' });
+    console.log(`[Youtube] yt-dlp version: ${versionCheck.stdout?.trim()}`);
+
+    // Check if bgutil plugin is loaded by passing dummy args and checking for errors
+    const potCheck = spawnSync(ytdlpBinary, 
+        ['--extractor-args', 'youtubepot-bgutilhttp:base_url=http://test', '-v', '--help'],
+        { encoding: 'utf8' }
+    );
+    const pluginLoaded = potCheck.stderr?.includes('bgutil') || potCheck.stdout?.includes('bgutil');
+    console.log(`[Youtube] bgutil PO token plugin loaded: ${pluginLoaded}`);
+} catch (err) {
+    console.warn('[Youtube] Startup diagnostic failed:', err);
+}
+
 // Log cookie status at startup
 const startupCookie = process.env.YOUTUBE_COOKIES || process.env.YOUTUBE_COOKIE;
 if (startupCookie) {
