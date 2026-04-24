@@ -103,11 +103,10 @@ const CLIENT_ROTATION: readonly string[] = [
 
 // On Railway, tv_simply is the most reliable client.
 // We rotate to others if it fails or is throttled.
-// On Railway, TV clients are the most resilient against bot-blocking.
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
-    'tv_embedded,tv_simply,ios', // Attempt 1: Most robust clients
-    'tv_simply,tv_embedded,ios', // Attempt 2
-    'mweb,web_safari,ios',        // Attempt 3: Web-based fallback
+    'mweb,ios,android',        // Attempt 1: High chance of Opus for copy mode
+    'ios,android,tv_simply',   // Attempt 2: Most reliable transcode fallback
+    'tv_simply,ios,android',   // Attempt 3: Ultimate safety net
 ];
 
 function getPlayerClients(attempt = 1): string {
@@ -334,9 +333,9 @@ export class Youtube {
         const sanitizedUrl = url.trim();
 
         for (let attempt = 1; attempt <= STREAM_RETRY_ATTEMPTS; attempt++) {
-            // Try copy mode for all attempts (zero latency).
-            // It will fail fast and move on if Opus is unavailable.
-            const mode: StreamMode = attempt < STREAM_RETRY_ATTEMPTS ? 'copy' : 'transcode';
+            // Attempt 1: Try copy mode (Opus).
+            // Attempt 2 & 3: Force transcode (reliability).
+            const mode: StreamMode = attempt === 1 ? 'copy' : 'transcode';
             try {
                 const { stream, ready } = this.createYtdlpStream(sanitizedUrl, attempt, mode);
                 await ready;
@@ -365,9 +364,9 @@ export class Youtube {
         const cookieFlags = getAuthFlags(attempt);
 
         // Copy mode: Prefer Opus (itag 251/250).
-        // Transcode mode: Grab best audio.
+        // Transcode mode: Grab anything playable.
         const formatSelector = mode === 'copy'
-            ? 'bestaudio[acodec=opus]/251/250'
+            ? 'bestaudio[acodec=opus]/bestaudio[ext=webm]/251/250'
             : 'bestaudio/best';
 
         const ytdlpArgs = [
