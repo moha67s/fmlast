@@ -18,10 +18,13 @@ import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { createProgressBar, formatDuration } from '../../utils/formatDuration';
 import { config } from '../../../config';
 import fs from 'fs';
-import path from 'path';
+import { join } from 'path';
+
+import { tmpdir } from 'os';
 
 // Railway/Production Cookie Sync & Sanitization:
-const COOKIES_FILE = path.join(process.cwd(), 'cookies.txt');
+// We use tmpdir() because writing to the root directory on cloud hosts can have permission issues.
+const COOKIES_FILE = join(tmpdir(), `fm2_yt_cookies.txt`);
 const rawEnvCookie = process.env.YOUTUBE_COOKIES?.replace(/^["']|["']$/g, '').trim();
 
 if (rawEnvCookie) {

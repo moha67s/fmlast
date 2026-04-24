@@ -53,7 +53,7 @@ const STREAM_RETRY_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 8_000;
 
-const COOKIES_FILE = join(process.cwd(), 'cookies.txt');
+const COOKIES_FILE = join(tmpdir(), `fm2_yt_cookies.txt`);
 
 let ytdlpBinary = 'yt-dlp';
 if (ytdlExec) {
@@ -69,9 +69,9 @@ if (typeof ffmpegStatic === 'string') {
 }
 
 const CLIENT_ROTATION: readonly string[] = [
+    'android,tv_simply,mweb,ios',
     'tv_simply,mweb,android,ios',
-    'web_embedded,tv_simply,android',
-    'mweb,tv_simply,ios,android',
+    'mweb,tv_simply,android,ios',
 ];
 
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
@@ -342,7 +342,6 @@ export class Youtube {
             '--no-warnings',
             '--no-progress',
             '--no-check-certificates',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             '--buffer-size', '512K',
             '-N', String(YTDLP_CONCURRENT_FRAGMENTS),
             '--throttled-rate', YTDLP_THROTTLED_RATE,
