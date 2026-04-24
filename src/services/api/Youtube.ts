@@ -55,9 +55,6 @@ const RETRY_MAX_DELAY_MS = 8_000;
 
 const COOKIES_FILE = join(tmpdir(), `fm2_yt_cookies.txt`);
 
-// Prefer the system-installed Python yt-dlp (pip) over the npm-bundled standalone binary.
-// The npm binary CANNOT load external Python plugins (like the PO Token provider).
-// The pip-installed binary CAN, which is critical for Railway where we need PO Tokens.
 let ytdlpBinary = 'yt-dlp';
 const systemYtdlp = '/usr/local/bin/yt-dlp';
 if (existsSync(systemYtdlp)) {
@@ -68,6 +65,29 @@ if (existsSync(systemYtdlp)) {
     if (constants?.YOUTUBE_DL_PATH) {
         ytdlpBinary = constants.YOUTUBE_DL_PATH;
         console.log('[Youtube] Using npm-bundled yt-dlp (no plugin support)');
+    }
+}
+
+// Write YOUTUBE_COOKIE to a file for yt-dlp to use
+if (process.env.YOUTUBE_COOKIE) {
+    try {
+        let cookieContent = process.env.YOUTUBE_COOKIE;
+        // If it's not a Netscape file, try to convert it from a raw cookie string
+        if (!cookieContent.startsWith('# Netscape')) {
+            const lines = ['# Netscape HTTP Cookie File'];
+            for (const part of cookieContent.split(';')) {
+                const eq = part.indexOf('=');
+                if (eq < 0) continue;
+                const name = part.slice(0, eq).trim();
+                const value = part.slice(eq + 1).trim();
+                if (name) lines.push(`.youtube.com\tTRUE\t/\tFALSE\t0\t${name}\t${value}`);
+            }
+            cookieContent = lines.join('\n');
+        }
+        writeFileSync(COOKIES_FILE, cookieContent);
+        console.log('[Youtube] YouTube cookies written to temp file');
+    } catch (err) {
+        console.error('[Youtube] Failed to write cookies:', err);
     }
 }
 
@@ -82,10 +102,12 @@ const CLIENT_ROTATION: readonly string[] = [
     'mweb,tv_simply,android,ios',
 ];
 
+// On Railway, tv_simply is the most reliable client.
+// We rotate to others if it fails or is throttled.
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
-    'ios,android,mweb',   // attempt 1 — ios/android don't trigger webpage bot-check
-    'android,ios,mweb',   // attempt 2
-    'mweb,ios,android',   // attempt 3
+    'tv_simply,ios,android',   // Attempt 1: Safest for cloud IPs
+    'ios,android,tv_simply',   // Attempt 2: Standard mobile
+    'tv_embedded,ios,android', // Attempt 3: TV embedded
 ];
 
 function getPlayerClients(attempt = 1): string {
@@ -315,8 +337,9 @@ export class Youtube {
         const sanitizedUrl = url.trim();
 
         for (let attempt = 1; attempt <= STREAM_RETRY_ATTEMPTS; attempt++) {
-            // Always transcode: ios/android serve AAC which can't be muxed into OGG without re-encoding.
-            const mode: StreamMode = 'transcode';
+            // Try copy mode for first 2 attempts (best quality/performance).
+            // Fallback to transcode on last attempt.
+            const mode: StreamMode = attempt < STREAM_RETRY_ATTEMPTS ? 'copy' : 'transcode';
             try {
                 const { stream, ready } = this.createYtdlpStream(sanitizedUrl, attempt, mode);
                 await ready;
@@ -344,10 +367,10 @@ export class Youtube {
     ): { stream: Readable; ready: Promise<void> } {
         const cookieFlags = getAuthFlags(attempt);
 
-        // Copy mode: prefer Opus (OGG-compatible). AAC cannot be muxed into OGG without transcoding.
-        // Transcode mode: grab anything and re-encode to Opus.
+        // Copy mode: Prefer Opus (itag 251/250) which is 48kHz.
+        // Transcode mode: Anything goes, we re-encode to Opus.
         const formatSelector = mode === 'copy'
-            ? 'bestaudio[acodec=opus]/bestaudio'
+            ? 'bestaudio[acodec=opus][asr=48000]/251/250'
             : 'bestaudio/best';
 
         const ytdlpArgs = [
