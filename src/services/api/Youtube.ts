@@ -68,11 +68,11 @@ if (existsSync(systemYtdlp)) {
     }
 }
 
-// Write YOUTUBE_COOKIE to a file for yt-dlp to use
-if (process.env.YOUTUBE_COOKIE) {
+// Write YOUTUBE_COOKIES to a file for yt-dlp to use (Sync with MusicPlayer.ts)
+const rawEnvCookie = process.env.YOUTUBE_COOKIES || process.env.YOUTUBE_COOKIE;
+if (rawEnvCookie) {
     try {
-        let cookieContent = process.env.YOUTUBE_COOKIE;
-        // If it's not a Netscape file, try to convert it from a raw cookie string
+        let cookieContent = rawEnvCookie.replace(/^["']|["']$/g, '').trim();
         if (!cookieContent.startsWith('# Netscape')) {
             const lines = ['# Netscape HTTP Cookie File'];
             for (const part of cookieContent.split(';')) {
@@ -85,7 +85,6 @@ if (process.env.YOUTUBE_COOKIE) {
             cookieContent = lines.join('\n');
         }
         writeFileSync(COOKIES_FILE, cookieContent);
-        console.log('[Youtube] YouTube cookies written to temp file');
     } catch (err) {
         console.error('[Youtube] Failed to write cookies:', err);
     }
@@ -104,10 +103,11 @@ const CLIENT_ROTATION: readonly string[] = [
 
 // On Railway, tv_simply is the most reliable client.
 // We rotate to others if it fails or is throttled.
+// On Railway, TV clients are the most resilient against bot-blocking.
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
-    'mweb,ios,android',        // Attempt 1: Standard mobile web (enables copy mode)
-    'tv_simply,ios,android',   // Attempt 2: Safest for cloud IPs (bypass check)
-    'ios,android,tv_simply',   // Attempt 3: Standard mobile (transcode fallback)
+    'tv_embedded,tv_simply,ios', // Attempt 1: Most robust clients
+    'tv_simply,tv_embedded,ios', // Attempt 2
+    'mweb,web_safari,ios',        // Attempt 3: Web-based fallback
 ];
 
 function getPlayerClients(attempt = 1): string {
@@ -334,8 +334,8 @@ export class Youtube {
         const sanitizedUrl = url.trim();
 
         for (let attempt = 1; attempt <= STREAM_RETRY_ATTEMPTS; attempt++) {
-            // Try copy mode for first 2 attempts (best quality/performance).
-            // Fallback to transcode on last attempt.
+            // Try copy mode for all attempts (zero latency).
+            // It will fail fast and move on if Opus is unavailable.
             const mode: StreamMode = attempt < STREAM_RETRY_ATTEMPTS ? 'copy' : 'transcode';
             try {
                 const { stream, ready } = this.createYtdlpStream(sanitizedUrl, attempt, mode);
