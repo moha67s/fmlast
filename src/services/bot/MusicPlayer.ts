@@ -20,18 +20,42 @@ import { config } from '../../../config';
 import fs from 'fs';
 import path from 'path';
 
-// Railway/Production Cookie Sync:
-// If YOUTUBE_COOKIES is set in env, write it to cookies.txt in the root
+// Railway/Production Cookie Sync & Sanitization:
 const COOKIES_FILE = path.join(process.cwd(), 'cookies.txt');
-if (process.env.YOUTUBE_COOKIES) {
+const rawEnvCookie = process.env.YOUTUBE_COOKIES?.replace(/^["']|["']$/g, '').trim();
+
+if (rawEnvCookie) {
     try {
-        fs.writeFileSync(COOKIES_FILE, process.env.YOUTUBE_COOKIES, { encoding: 'utf8', mode: 0o600 });
-        console.log('[MusicPlayer] 🍪 Synchronized cookies.txt from environment variable.');
+        let cookieContent: string;
+        if (rawEnvCookie.startsWith('# Netscape HTTP Cookie File')) {
+            const sanitized: string[] = [];
+            for (const raw of rawEnvCookie.split('\n')) {
+                const line = raw.trimEnd();
+                if (line.startsWith('#') || line === '') {
+                    sanitized.push(line);
+                    continue;
+                }
+                const fields = line.split('\t').length;
+                if (fields === 7) sanitized.push(line);
+            }
+            cookieContent = sanitized.join('\n');
+        } else {
+            // Convert semicolon-separated cookies to Netscape format
+            const lines = ['# Netscape HTTP Cookie File'];
+            for (const part of rawEnvCookie.split(';')) {
+                const eq = part.indexOf('=');
+                if (eq < 0) continue;
+                const name = part.slice(0, eq).trim();
+                const value = part.slice(eq + 1).trim();
+                if (name) lines.push(`.youtube.com\tTRUE\t/\tFALSE\t0\t${name}\t${value}`);
+            }
+            cookieContent = lines.join('\n');
+        }
+        fs.writeFileSync(COOKIES_FILE, cookieContent, { encoding: 'utf8', mode: 0o600 });
+        console.log('[MusicPlayer] 🍪 Synchronized and Sanitized cookies.txt.');
     } catch (err) {
         console.error('[MusicPlayer] ❌ Failed to write cookies.txt:', err);
     }
-} else if (!fs.existsSync(COOKIES_FILE)) {
-    console.warn('[MusicPlayer] ⚠️ No cookies.txt found and YOUTUBE_COOKIES env var is missing. Playback may fail.');
 }
 
 export interface GuildQueue {

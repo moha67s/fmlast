@@ -61,8 +61,11 @@ if (existsSync(COOKIES_FILE)) {
 }
 
 let ytdlpBinary = 'yt-dlp';
-if (ytdlExec && (ytdlExec as any).constants?.YOUTUBE_DL_PATH) {
-    ytdlpBinary = (ytdlExec as any).constants.YOUTUBE_DL_PATH;
+if (ytdlExec) {
+    const constants = (ytdlExec as any).constants || (ytdlExec as any).default?.constants;
+    if (constants?.YOUTUBE_DL_PATH) {
+        ytdlpBinary = constants.YOUTUBE_DL_PATH;
+    }
 }
 
 let ffmpegBinary = 'ffmpeg';
@@ -71,9 +74,9 @@ if (typeof ffmpegStatic === 'string') {
 }
 
 const CLIENT_ROTATION: readonly string[] = [
-    'tv_simply,mweb,ios,android',
-    'mweb,tv_simply,ios,android',
-    'ios,mweb,tv_simply,android',
+    'tv_simply,mweb,web_safari,ios',
+    'mweb,tv_simply,web_safari,ios',
+    'web_safari,tv_simply,mweb,ios',
 ];
 
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
