@@ -58,7 +58,7 @@ const COOKIES_FILE = '/tmp/fm2_yt_cookies.txt';
 function ensureCookiesFile(): void {
     const raw = process.env.YOUTUBE_COOKIES || process.env.YOUTUBE_COOKIE;
     if (!raw) return;
-    
+
     // If it exists and is not empty, we are good
     if (existsSync(COOKIES_FILE)) return;
 
@@ -120,7 +120,7 @@ try {
     console.log(`[Youtube] yt-dlp version: ${versionCheck.stdout?.trim()}`);
 
     // Check if bgutil plugin is loaded by passing dummy args and checking for errors
-    const potCheck = spawnSync(ytdlpBinary, 
+    const potCheck = spawnSync(ytdlpBinary,
         ['--extractor-args', 'youtubepot-bgutilhttp:base_url=http://test', '-v', '--help'],
         { encoding: 'utf8' }
     );
@@ -148,7 +148,7 @@ try {
         const hasRealTabs = firstDataLine?.includes('\t');
         console.log(`[Youtube] Cookie file tab check: ${hasRealTabs ? '✓ tabs OK' : '⚠️ NO TABS — file is BROKEN'}`);
     }
-} catch (err) {}
+} catch (err) { }
 
 let ffmpegBinary = 'ffmpeg';
 if (typeof ffmpegStatic === 'string') {
@@ -161,12 +161,10 @@ const CLIENT_ROTATION: readonly string[] = [
     'ios,android,tv_simply',
 ];
 
-// On Railway, tv_simply is the most reliable client.
-// We rotate to others if it fails or is throttled.
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
-    'tv_simply,ios,android',   // Attempt 1: King of Bypass (try Copy Mode)
-    'ios,android,tv_simply',   // Attempt 2: Most reliable (Transcode Fallback)
-    'tv_simply,ios,android',   // Attempt 3: Mobile web fallback
+    'default,web_safari',    // Attempt 1 — Optimized for PO Tokens + visitorData
+    'ios,android,tv_simply', // Attempt 2 — Mobile fallback
+    'tv_simply,ios,android', // Attempt 3 — TV fallback
 ];
 
 function getPlayerClients(attempt = 1): string {
@@ -184,13 +182,11 @@ function getAuthFlags(attempt = 1): string[] {
         youtubeArgs.push(`visitor_data=${config.YT_VISITOR_DATA}`);
     }
 
-    // IMPORTANT: On Railway, fetching the webpage for mobile/TV clients 
-    // triggers an instant 403 "Sign in" block. We MUST skip it.
-    // HOWEVER: If we have a PO Token server, we MUST NOT skip it, because
-    // the plugin needs the webpage to generate the token!
     const clients = getPlayerClients(attempt);
     const isWebClient = clients.includes('web') || clients.includes('default');
     
+    // Only skip webpage for non-web clients. 
+    // Web clients (Attempt 1) NEED the webpage for PO Token generation.
     if (!isWebClient && !config.POTOKEN_SERVER) {
         youtubeArgs.push('player_skip=webpage,configs');
     }
@@ -198,24 +194,20 @@ function getAuthFlags(attempt = 1): string[] {
     const flags: string[] = ['--extractor-args', `youtube:${youtubeArgs.join(';')}`];
 
     if (config.POTOKEN_SERVER) {
-        // The bgutil PO Token plugin (installed via pip) auto-loads.
-        // We just need to tell it where our Railway token server lives.
         let baseUrl = config.POTOKEN_SERVER.replace(/\/$/, '');
         
         // Defensive: ensure scheme is present
-        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        if (!baseUrl.startsWith('http')) {
             baseUrl = `https://${baseUrl}`;
-            console.warn(`[Youtube] ⚠️ POTOKEN_SERVER was missing https://, auto-corrected to: ${baseUrl}`);
         }
 
         flags.push('--extractor-args', `youtubepot-bgutilhttp:base_url=${baseUrl}`);
-        console.log(`[Youtube] getAuthFlags: Linking PO Token Provider → ${baseUrl}`);
-
+        
         // Background check for token server reachability (hit the root)
         if (attempt === 1) {
             fetch(baseUrl)
                 .then(r => { 
-                    if (r.status !== 200 && r.status !== 405) { // 405 is fine (method not allowed)
+                    if (r.status !== 200 && r.status !== 405) {
                         console.warn(`[Youtube] ⚠️ PO Token server (${baseUrl}) returned status ${r.status}`); 
                     }
                 })
@@ -223,12 +215,8 @@ function getAuthFlags(attempt = 1): string[] {
         }
     }
 
-    const cookieExists = existsSync(COOKIES_FILE);
-    if (cookieExists) {
+    if (existsSync(COOKIES_FILE)) {
         flags.push('--cookies', COOKIES_FILE);
-        console.log(`[Youtube] getAuthFlags: Using cookies file ✓ (${COOKIES_FILE})`);
-    } else {
-        console.warn(`[Youtube] getAuthFlags: ⚠️ Cookies file NOT found — yt-dlp will run unauthenticated!`);
     }
 
     return flags;
@@ -436,8 +424,8 @@ export class Youtube {
                 console.log(`[Youtube] Audio stream started (mode=${mode}, attempt ${attempt})`);
                 return { stream };
             } catch (error) {
-                lastError = error;
-                console.warn(`[Youtube] Stream attempt ${attempt}/${STREAM_RETRY_ATTEMPTS} failed: ${error}`);
+                lastError = error; -
+                    console.warn(`[Youtube] Stream attempt ${attempt}/${STREAM_RETRY_ATTEMPTS} failed: ${error}`);
 
                 if (attempt < STREAM_RETRY_ATTEMPTS) {
                     const expo = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
