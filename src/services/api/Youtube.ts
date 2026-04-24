@@ -104,7 +104,7 @@ const CLIENT_ROTATION: readonly string[] = [
 // On Railway, tv_simply is the most reliable client.
 // We rotate to others if it fails or is throttled.
 const POTOKEN_CLIENT_ROTATION: readonly string[] = [
-    'web_safari,ios,android',  // Attempt 1: Best chance for Opus (Copy Mode)
+    'default,web_safari,mweb', // Attempt 1: Best for Opus/Copy Mode (Desktop web)
     'ios,android,tv_simply',   // Attempt 2: Most reliable (Transcode Fallback)
     'tv_simply,ios,android',   // Attempt 3: Ultimate safety net
 ];
@@ -373,10 +373,11 @@ export class Youtube {
     ): { stream: Readable; ready: Promise<void> } {
         const cookieFlags = getAuthFlags(attempt);
 
-        // Copy mode: Prefer Opus (itag 251/250).
+        // Copy mode: STRICTOR Opus filter (251/250). 
+        // We MUST only copy Opus because OGG containers don't support AAC.
         // Transcode mode: Grab anything playable.
         const formatSelector = mode === 'copy'
-            ? 'bestaudio[acodec=opus]/bestaudio[ext=webm]/251/250'
+            ? 'bestaudio[acodec=opus]/bestaudio[ext=webm][acodec=opus]/251/250'
             : 'bestaudio/best';
 
         const ytdlpArgs = [
