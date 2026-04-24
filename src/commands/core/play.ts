@@ -188,6 +188,7 @@ export default class PlayCommand extends BaseCommand {
         let finalDuration = result.duration;
         if (resolved.durationMs > 0) {
             const totalSeconds = Math.floor(resolved.durationMs / 1000);
+            result.durationSeconds = totalSeconds;
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             finalDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;

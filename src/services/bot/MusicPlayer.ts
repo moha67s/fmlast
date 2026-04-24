@@ -8,45 +8,17 @@ import {
     VoiceConnectionStatus,
     getVoiceConnection,
     NoSubscriberBehavior,
-    StreamType
+    StreamType,
+    entersState
 } from '@discordjs/voice';
-import { YoutubeResult } from '../api/Youtube';
-import play from 'play-dl';
-import youtubedl, { exec as ytdlExec } from 'youtube-dl-exec';
-import { VoiceChannel, TextChannel } from 'discord.js';
+import { Youtube, YoutubeResult } from '../api/Youtube';
+import { VoiceChannel, TextChannel, Message } from 'discord.js';
 import { ScrobbleService } from './ScrobbleService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
+import { createProgressBar, formatDuration } from '../../utils/formatDuration';
+import { config } from '../../../config';
 import fs from 'fs';
 import path from 'path';
-
-const COOKIES_FILE = path.join(process.cwd(), 'cookies.txt');
-
-
-
-// Always (re)create cookies.txt from env var on every boot to ensure freshness
-if (process.env.YOUTUBE_COOKIES) {
-    try {
-        let cookieContent = process.env.YOUTUBE_COOKIES;
-        // Railway may encode newlines as literal \n — restore them
-        if (!cookieContent.includes('\n')) {
-            cookieContent = cookieContent.replace(/\\n/g, '\n');
-        }
-        // Strip any wrapping quotes Railway might inject
-        cookieContent = cookieContent.replace(/^["']|["']$/g, '');
-        fs.writeFileSync(COOKIES_FILE, cookieContent, 'utf-8');
-        const lines = cookieContent.split('\n').filter(l => l.trim().length > 0);
-        console.log(`[MusicPlayer] ✅ cookies.txt written (${lines.length} lines, ${cookieContent.length} bytes)`);
-        console.log(`[MusicPlayer] 🍪 First line: ${lines[0]?.substring(0, 60)}...`);
-    } catch (err) {
-        console.error('[MusicPlayer] Failed to write cookies.txt from env:', err);
-    }
-} else {
-    if (fs.existsSync(COOKIES_FILE)) {
-        console.log('[MusicPlayer] 🍪 Using existing cookies.txt file');
-    } else {
-        console.warn('[MusicPlayer] ⚠️ No YOUTUBE_COOKIES env var and no cookies.txt found!');
-    }
-}
 
 export interface GuildQueue {
     textChannel: TextChannel;
@@ -56,9 +28,11 @@ export interface GuildQueue {
     tracks: YoutubeResult[];
     isPlaying: boolean;
     isPaused: boolean;
-    currentProcess: any | null;
     consecutiveErrors: number;
     currentResource: any | null;
+    nowPlayingMessage?: Message;
+    progressInterval?: NodeJS.Timeout;
+    inactivityTimer?: NodeJS.Timeout;
 }
 
 export class MusicPlayer {
@@ -78,7 +52,6 @@ export class MusicPlayer {
                 tracks: [],
                 isPlaying: false,
                 isPaused: false,
-                currentProcess: null,
                 consecutiveErrors: 0,
                 currentResource: null
             };
@@ -101,13 +74,16 @@ export class MusicPlayer {
             });
 
             queue.connection.on(VoiceConnectionStatus.Disconnected, async () => {
+                console.warn(`[MusicPlayer] Voice connection lost for guild ${guildId}, attempting recovery...`);
                 try {
+                    // Try to reconnect for 15 seconds
                     await Promise.race([
-                        new Promise((resolve) => queue.connection?.once(VoiceConnectionStatus.Signalling, resolve)),
-                        new Promise((resolve) => queue.connection?.once(VoiceConnectionStatus.Connecting, resolve)),
+                        entersState(queue.connection!, VoiceConnectionStatus.Signalling, 5000),
+                        entersState(queue.connection!, VoiceConnectionStatus.Connecting, 5000),
                     ]);
-                    // Resumed
+                    // Reconnected
                 } catch (e) {
+                    console.error(`[MusicPlayer] Reconnection failed for guild ${guildId}`);
                     this.stop(guildId);
                 }
             });
@@ -121,23 +97,11 @@ export class MusicPlayer {
             });
 
             queue.player.on(AudioPlayerStatus.Idle, () => {
-                // Cleanup subprocess if it's still hanging around
-                if (queue.currentProcess && !queue.currentProcess.killed) {
-                    try { queue.currentProcess.kill(); } catch { }
-                    queue.currentProcess = null;
-                }
                 this.onTrackEnd(guildId);
             });
 
             queue.player.on('error', (error) => {
-                console.error(`[MusicPlayer] Error in guild ${guildId}:`, error);
-
-                // Cleanup process on error too
-                if (queue.currentProcess && !queue.currentProcess.killed) {
-                    try { queue.currentProcess.kill(); } catch { }
-                    queue.currentProcess = null;
-                }
-
+                console.error(`[MusicPlayer] Audio Player Error in guild ${guildId}:`, error);
                 queue.textChannel.send(`⚠️ Error playing track: ${error.message}`);
                 this.onTrackEnd(guildId, true);
             });
@@ -150,7 +114,6 @@ export class MusicPlayer {
 
     /**
      * Start playing or add to queue
-     * Returns the position of the track in the queue
      */
     static async play(guildId: string, track: YoutubeResult): Promise<number> {
         const queue = this.queues.get(guildId);
@@ -165,32 +128,24 @@ export class MusicPlayer {
         return queue.tracks.length;
     }
 
-    /**
-     * skip the current track
-     */
     static skip(guildId: string) {
         const queue = this.queues.get(guildId);
         if (queue && queue.player) {
+            this.stopProgressUpdate(guildId);
             queue.player.stop();
             return true;
         }
         return false;
     }
 
-    /**
-     * Stop playback and leave VC
-     */
     static stop(guildId: string) {
         const queue = this.queues.get(guildId);
         if (queue) {
+            this.stopProgressUpdate(guildId);
+            if (queue.inactivityTimer) clearTimeout(queue.inactivityTimer);
+            
             queue.tracks = [];
             queue.isPlaying = false;
-
-            if (queue.currentProcess && !queue.currentProcess.killed) {
-                try { queue.currentProcess.kill(); } catch { }
-                queue.currentProcess = null;
-            }
-
             queue.player?.stop();
             queue.connection?.destroy();
             this.queues.delete(guildId);
@@ -199,162 +154,175 @@ export class MusicPlayer {
         return false;
     }
 
-    /**
-     * Pause playback
-     */
     static pause(guildId: string) {
         const queue = this.queues.get(guildId);
         if (queue && queue.player && !queue.isPaused) {
             queue.player.pause();
             queue.isPaused = true;
+            this.stopProgressUpdate(guildId);
+            this.updateNowPlayingMessage(guildId);
             return true;
         }
         return false;
     }
 
-    /**
-     * Resume playback
-     */
     static resume(guildId: string) {
         const queue = this.queues.get(guildId);
         if (queue && queue.player && queue.isPaused) {
             queue.player.unpause();
             queue.isPaused = false;
+            this.startProgressUpdate(guildId);
+            this.updateNowPlayingMessage(guildId);
             return true;
         }
         return false;
     }
 
-    /**
-     * Processing the next item in the queue
-     */
     private static async processQueue(guildId: string) {
         const queue = this.queues.get(guildId);
         if (!queue) return;
 
         if (queue.tracks.length === 0) {
             queue.isPlaying = false;
-
-            // Queue concluded message
+            this.stopProgressUpdate(guildId);
+            
             const endBuilder = new ComponentsV2()
-                .addText(`✅ **Queue concluded.** Disconnecting in 30 seconds if inactive.`);
+                .addText(`✅ **Queue concluded.** Disconnecting in 5 minutes if inactive.`);
             queue.textChannel.send(endBuilder.build()).catch(() => { });
 
-            // Auto-disconnect after 30 seconds of idle
-            setTimeout(() => {
+            // Auto-disconnect
+            if (queue.inactivityTimer) clearTimeout(queue.inactivityTimer);
+            queue.inactivityTimer = setTimeout(() => {
                 const refreshed = this.queues.get(guildId);
                 if (refreshed && !refreshed.isPlaying && refreshed.tracks.length === 0) {
                     this.stop(guildId);
                 }
-            }, 30000);
+            }, config.INACTIVITY_TIMEOUT * 1000);
             return;
+        }
+
+        if (queue.inactivityTimer) {
+            clearTimeout(queue.inactivityTimer);
+            queue.inactivityTimer = undefined;
         }
 
         const track = queue.tracks[0];
-        const streamUrl = track.url;
-
-        if (!streamUrl) {
-            queue.textChannel.send(`❌ Missing URL for: **${track.title}**`);
-            MusicPlayer.onTrackEnd(guildId, true);
-            return;
-        }
-
         try {
             queue.isPlaying = true;
-            let stderrBuffer = '';
+            console.log(`[MusicPlayer] 🎵 Fetching stream for: ${track.title}`);
 
-            console.log(`[MusicPlayer] 🎵 Playing: ${track.title} (Direct YouTube Engine)`);
-
-            // Combined logic: Old-school bypass flags + Modern Cookies + bestaudio*
-            const ytdlArgs: any = {
-                output: '-',
-                format: 'bestaudio/best',
-                noCheckCertificates: true,
-                noWarnings: true,
-                noPlaylist: true,
-                addHeader: [
-                    'referer:youtube.com',
-                    'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-                ]
-            };
-
-            if (fs.existsSync(COOKIES_FILE)) {
-                ytdlArgs.cookies = COOKIES_FILE;
-            }
-
-            const ytProcess = ytdlExec(streamUrl, ytdlArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
-            queue.currentProcess = ytProcess;
-
-            ytProcess.catch((err) => {
-                if (err.signal === 'SIGTERM' || err.message?.includes('SIGTERM')) return;
-                const fullError = (err.stderr || stderrBuffer || err.message || '').toLowerCase();
-
-                console.error('[MusicPlayer] YouTube Error:', fullError.substring(0, 300));
-                
-                if (fullError.includes('sign in')) {
-                    queue.textChannel.send(`❌ **YouTube Blocked**: Sign-in required for \`${track.title}\`. Your cookies might be expired.`).catch(() => { });
-                } else {
-                    queue.textChannel.send(`❌ **YouTube Error**: Could not stream \`${track.title}\`.`).catch(() => { });
-                }
-
-                if (queue.currentProcess === ytProcess) {
-                    queue.currentProcess = null;
-                    MusicPlayer.onTrackEnd(guildId, true);
-                }
-            });
-
-            if (!ytProcess.stdout) throw new Error("Failed to open stdout");
-
-            const resource = createAudioResource(ytProcess.stdout, {
-                inputType: StreamType.Arbitrary,
+            const { stream } = await Youtube.getAudioStream(track.url);
+            
+            const resource = createAudioResource(stream, {
+                inputType: StreamType.OggOpus,
                 inlineVolume: true
             });
 
-            ytProcess.stderr?.on('data', (data: Buffer) => { stderrBuffer += data.toString(); });
-
-            queue.player?.play(resource);
             queue.currentResource = resource;
+            queue.player?.play(resource);
 
-            console.log(`[MusicPlayer] ✅ Stream started: ${track.title}`);
+            console.log(`[MusicPlayer] ✅ Playback started: ${track.title}`);
 
-            // Render UI and Scrobble
+            // Render UI
+            await this.sendPlaybackUI(guildId, track);
+            
+            // Start progress updates
+            this.startProgressUpdate(guildId);
+
+            // Scrobble
             if (track.artistName && track.trackTitle) {
-                MusicPlayer.sendPlaybackUI(guildId, track);
-                MusicPlayer.handleScrobbling(guildId, track);
+                this.handleScrobbling(guildId, track);
             }
 
         } catch (err: any) {
-            console.error(`[MusicPlayer] Critical Error:`, err);
-            MusicPlayer.onTrackEnd(guildId, true);
+            console.error(`[MusicPlayer] Critical Playback Error:`, err);
+            queue.textChannel.send(`❌ **Playback Failed**: ${err.message || 'Unknown error'}. Skipping...`);
+            this.onTrackEnd(guildId, true);
         }
     }
 
-    private static sendPlaybackUI(guildId: string, track: any) {
-        const queue = MusicPlayer.queues.get(guildId);
+    private static async sendPlaybackUI(guildId: string, track: YoutubeResult) {
+        const queue = this.queues.get(guildId);
         if (!queue) return;
+
+        const ui = this.buildPlaybackUI(track, 0, false);
         try {
-            const pbBuilder = new ComponentsV2()
-                .setAccent(0x1DB954)
-                .addThumbnail(track.artworkUrl || track.thumbnail, `### 🎵 ${track.artistName} - ${track.trackTitle.replace(/\[.*?\]|\(.*?\)/g, '')}\n**${track.channelTitle}**${track.statsText || ''}\n-# Added to queue by ${track.requesterName || 'Unknown'}`)
-                .addSeparator()
-                .addRow([
-                    { type: 2, style: 2, label: '⏸️ Pause', custom_id: `mp-pause:${guildId}` },
-                    { type: 2, style: 2, label: '⏭️ Skip', custom_id: `mp-skip:${guildId}` },
-                    { type: 2, style: 4, label: '🛑 Stop', custom_id: `mp-stop:${guildId}` },
-                    { type: 2, style: 2, label: '📝 Lyrics', custom_id: `wh-lyrics:${track.artistName.substring(0, 35)}|${track.trackTitle.substring(0, 35)}` }
-                ]);
-            queue.textChannel.send(pbBuilder.build()).catch(() => { });
-        } catch { }
+            const msg = await queue.textChannel.send(ui);
+            queue.nowPlayingMessage = msg;
+        } catch (err) {
+            console.error('[MusicPlayer] Failed to send playback UI:', err);
+        }
     }
 
-    private static async handleScrobbling(guildId: string, track: any) {
-        const queue = MusicPlayer.queues.get(guildId);
+    private static buildPlaybackUI(track: YoutubeResult, elapsed: number, isPaused: boolean) {
+        const total = track.durationSeconds || 0;
+        const progressBar = createProgressBar(elapsed, total);
+        const timeInfo = `\`${formatDuration(elapsed)} / ${track.duration || '0:00'}\``;
+
+        const builder = new ComponentsV2()
+            .setAccent(isPaused ? 0xFFA500 : 0x1DB954)
+            .addThumbnail(track.artworkUrl || track.thumbnail, 
+                `### 🎵 ${track.artistName || ''} - ${(track.trackTitle || track.title).replace(/\[.*?\]|\(.*?\)/g, '')}\n` +
+                `**${track.channelTitle}** ${track.statsText || ''}\n\n` +
+                `${progressBar} ${timeInfo}\n\n` +
+                `-# Added to queue by ${track.requesterName || 'Unknown'}`
+            )
+            .addSeparator()
+            .addRow([
+                { type: 2, style: 2, label: isPaused ? '▶️ Resume' : '⏸️ Pause', custom_id: isPaused ? `mp-resume:${track.url}` : `mp-pause:${track.url}` },
+                { type: 2, style: 2, label: '⏭️ Skip', custom_id: `mp-skip:${track.url}` },
+                { type: 2, style: 4, label: '🛑 Stop', custom_id: `mp-stop:${track.url}` },
+                { type: 2, style: 2, label: '📝 Lyrics', custom_id: `wh-lyrics:${(track.artistName || '').substring(0, 35)}|${(track.trackTitle || '').substring(0, 35)}` }
+            ]);
+
+        return builder.build();
+    }
+
+    private static startProgressUpdate(guildId: string) {
+        const queue = this.queues.get(guildId);
+        if (!queue) return;
+
+        this.stopProgressUpdate(guildId);
+
+        queue.progressInterval = setInterval(() => {
+            this.updateNowPlayingMessage(guildId);
+        }, 15000);
+    }
+
+    private static stopProgressUpdate(guildId: string) {
+        const queue = this.queues.get(guildId);
+        if (queue?.progressInterval) {
+            clearInterval(queue.progressInterval);
+            queue.progressInterval = undefined;
+        }
+    }
+
+    private static async updateNowPlayingMessage(guildId: string) {
+        const queue = this.queues.get(guildId);
+        if (!queue || !queue.nowPlayingMessage || !queue.isPlaying) return;
+
+        const track = queue.tracks[0];
+        if (!track) return;
+
+        const elapsed = queue.currentResource ? Math.floor(queue.currentResource.playbackDuration / 1000) : 0;
+        const ui = this.buildPlaybackUI(track, elapsed, queue.isPaused);
+
+        try {
+            await queue.nowPlayingMessage.edit(ui);
+        } catch (err) {
+            // Message might be deleted
+            this.stopProgressUpdate(guildId);
+        }
+    }
+
+    private static async handleScrobbling(guildId: string, track: YoutubeResult) {
+        const queue = this.queues.get(guildId);
         if (!queue) return;
         try {
             const voiceChannel = await queue.textChannel.guild.channels.fetch(queue.voiceChannelId) as VoiceChannel;
             if (voiceChannel) {
                 const listeners = voiceChannel.members.filter(m => !m.user.bot).map(m => m.id);
-                if (listeners.length > 0) {
+                if (listeners.length > 0 && track.artistName && track.trackTitle) {
                     await ScrobbleService.scrobbleForUsers(listeners, { artist: track.artistName, track: track.trackTitle });
                     const builder = new ComponentsV2().setAccent(0xd80000).addText(`Scrobbling **${track.trackTitle}** by **${track.artistName}**`);
                     queue.textChannel.send(builder.build()).catch(() => { });
@@ -366,6 +334,8 @@ export class MusicPlayer {
     private static onTrackEnd(guildId: string, error = false) {
         const queue = this.queues.get(guildId);
         if (!queue) return;
+
+        this.stopProgressUpdate(guildId);
 
         if (error) {
             queue.consecutiveErrors++;
@@ -379,6 +349,6 @@ export class MusicPlayer {
         }
 
         queue.tracks.shift();
-        MusicPlayer.processQueue(guildId);
+        this.processQueue(guildId);
     }
 }
