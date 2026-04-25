@@ -203,6 +203,12 @@ function getAuthFlags(attempt = 1): string[] {
 
     const youtubeArgs: string[] = [`player_client=${getPlayerClients(attempt)}`];
 
+    // Use dynamic visitorData if we have it, otherwise fallback to env
+    const vData = currentVisitorData || config.YT_VISITOR_DATA;
+    if (vData) {
+        youtubeArgs.push(`visitor_data=${vData}`);
+    }
+
     const clients = getPlayerClients(attempt);
     const isWebClient = clients.includes('web') || clients.includes('default');
     
