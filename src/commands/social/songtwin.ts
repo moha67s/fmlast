@@ -16,20 +16,56 @@ import { TrackResolverService } from '../../services/api/TrackResolverService';
 // HELPERS
 // ═══════════════════════════════════════════════════════
 
-/** Compute Sørensen–Dice compatibility overlap between two string sets */
-function computeCompatibility(setA: string[], setB: string[]): number {
-    if (!setA.length || !setB.length) return 0;
-    const a = new Set(setA.map(s => s.toLowerCase().trim()));
-    const b = new Set(setB.map(s => s.toLowerCase().trim()));
-    let intersection = 0;
-    for (const item of a) {
-        if (b.has(item)) intersection++;
+/** Compute Weighted Pro Compatibility between two artist/track lists */
+function computeWeightedCompatibility(listA: any[], listB: any[]): number {
+    if (!listA.length || !listB.length) return 0;
+
+    const mapA = new Map(listA.map((item, i) => [
+        (item.name || item.text || '').toLowerCase().trim(),
+        { playcount: parseInt(item.playcount || '1'), rank: i + 1 }
+    ]));
+    const mapB = new Map(listB.map((item, i) => [
+        (item.name || item.text || '').toLowerCase().trim(),
+        { playcount: parseInt(item.playcount || '1'), rank: i + 1 }
+    ]));
+
+    const maxRank = Math.max(listA.length, listB.length, 100);
+    let totalWeight = 0;
+    let sharedWeight = 0;
+
+    // Weighting parameters
+    const getRankWeight = (rank: number) => Math.pow((maxRank - rank + 1) / maxRank, 2); // Quadratic decay
+
+    // Process List A
+    for (const [name, infoA] of mapA) {
+        const rWeightA = getRankWeight(infoA.rank);
+        const infoB = mapB.get(name);
+
+        if (infoB) {
+            const rWeightB = getRankWeight(infoB.rank);
+            // Intensity match: How similar are the scrobble counts?
+            const intensity = Math.min(infoA.playcount, infoB.playcount) / Math.max(infoA.playcount, infoB.playcount);
+            
+            // Shared weight = Average of rank weights * (base similarity + intensity bonus)
+            sharedWeight += ((rWeightA + rWeightB) / 2) * (0.4 + 0.6 * intensity);
+        }
+        totalWeight += rWeightA;
     }
-    // Use Sørensen–Dice coefficient for a much fairer overlap metric
-    const dice = (2 * intersection) / (a.size + b.size);
-    // Apply a logarithmic scale/curve so modest overlaps yield higher scores (since sharing 15 of top 50 is massive)
-    let score = Math.pow(dice, 0.6) * 100;
-    return Math.min(100, Math.round(score));
+
+    // Add weights for B's unique items to the denominator
+    for (const [name, infoB] of mapB) {
+        if (!mapA.has(name)) {
+            totalWeight += getRankWeight(infoB.rank);
+        }
+    }
+
+    if (totalWeight === 0) return 0;
+    const rawOverlap = (sharedWeight / totalWeight) * 100;
+
+    // Apply a logarithmic "Friendship Curve" 
+    // This ensures that even a 15% raw overlap (which is huge in music) feels meaningful (~40%)
+    const boosted = Math.pow(rawOverlap / 100, 0.45) * 100;
+    return Math.min(100, Math.round(boosted));
 }
 
 /** Get top artist names from a list */
@@ -126,21 +162,21 @@ export default class SongTwinCommand extends BaseCommand {
         else { try { (interactionOrMessage.channel as TextChannel).sendTyping(); } catch { } }
 
         try {
-            // ── Fetch data for both users ── each independently to survive partial failures (Increased limit to 50 for deeper comparison)
-            const artistsA = await LastFM.getTopArtists(dbUser.lastfmUsername, period, 50, dbUser.lastfmSessionKey).catch(() => []);
-            const topTracksA = await LastFM.getTopTracks(dbUser.lastfmUsername, period, 50, dbUser.lastfmSessionKey).catch(() => []);
+            // ── Fetch data for both users ── depth increased to 100 for Pro Accuracy
+            const artistsA = await LastFM.getTopArtists(dbUser.lastfmUsername, period, 100, dbUser.lastfmSessionKey).catch(() => []);
+            const topTracksA = await LastFM.getTopTracks(dbUser.lastfmUsername, period, 100, dbUser.lastfmSessionKey).catch(() => []);
             let userInfoA = await LastFM.getUserInfo(dbUser.lastfmUsername, dbUser.lastfmSessionKey).catch(() => null);
-            if (!userInfoA) userInfoA = await LastFM.getUserInfo(dbUser.lastfmUsername).catch(() => null); // Retry without session if authenticated fails
+            if (!userInfoA) userInfoA = await LastFM.getUserInfo(dbUser.lastfmUsername).catch(() => null);
 
             const artistsB = targetDbUser
-                ? await LastFM.getTopArtists(targetDbUser.lastfmUsername, period, 50, targetDbUser.lastfmSessionKey).catch(() => [])
+                ? await LastFM.getTopArtists(targetDbUser.lastfmUsername, period, 100, targetDbUser.lastfmSessionKey).catch(() => [])
                 : [] as any[];
             const topTracksB = targetDbUser
-                ? await LastFM.getTopTracks(targetDbUser.lastfmUsername, period, 50, targetDbUser.lastfmSessionKey).catch(() => [])
+                ? await LastFM.getTopTracks(targetDbUser.lastfmUsername, period, 100, targetDbUser.lastfmSessionKey).catch(() => [])
                 : [] as any[];
-            const topAlbumsA = await LastFM.getTopAlbums(dbUser.lastfmUsername, period, 20, dbUser.lastfmSessionKey).catch(() => []);
+            const topAlbumsA = await LastFM.getTopAlbums(dbUser.lastfmUsername, period, 30, dbUser.lastfmSessionKey).catch(() => []);
             const topAlbumsB = targetDbUser
-                ? await LastFM.getTopAlbums(targetDbUser.lastfmUsername, period, 20, targetDbUser.lastfmSessionKey).catch(() => [])
+                ? await LastFM.getTopAlbums(targetDbUser.lastfmUsername, period, 30, targetDbUser.lastfmSessionKey).catch(() => [])
                 : [] as any[];
 
             const userInfoB = targetDbUser
@@ -155,12 +191,10 @@ export default class SongTwinCommand extends BaseCommand {
             const uniqueToA = namesA.filter(n => !namesB.map(b => b.toLowerCase()).includes(n.toLowerCase())).slice(0, 3);
             const uniqueToB = namesB.filter(n => !namesA.map(a => a.toLowerCase()).includes(n.toLowerCase())).slice(0, 3);
 
-            // ── Compatibility score (artists + tracks combined) ──
-            const trackNamesA = (topTracksA as any[]).map((t: any) => `${t.name}::${t.artist?.name || ''}`);
-            const trackNamesB = (topTracksB as any[]).map((t: any) => `${t.name}::${t.artist?.name || ''}`);
-            const artistScore = computeCompatibility(namesA, namesB);
-            const trackScore = computeCompatibility(trackNamesA, trackNamesB);
-            const compatScore = Math.round((artistScore * 0.6) + (trackScore * 0.4));
+            // ── New Weighted Pro Compatibility score ──
+            const artistScore = computeWeightedCompatibility(artistsA, artistsB);
+            const trackScore = computeWeightedCompatibility(topTracksA, topTracksB);
+            const compatScore = Math.round((artistScore * 0.7) + (trackScore * 0.3));
 
             // ── Bridge tracks recommendation (one per shared artist, up to 7) ──
             const bridgeTracks: { track: string; artist: string; cover: string | null }[] = [];
@@ -270,40 +304,60 @@ export default class SongTwinCommand extends BaseCommand {
             };
             const periodLabelText = periodLabelMap[period] || 'LAST 7 DAYS';
 
+            // ── Build score label ──
+            const scoreLabel = compatScore >= 85 ? 'SONIC SOULMATES'
+                : compatScore >= 70 ? 'GENRE TWINS'
+                    : compatScore >= 50 ? 'PARALLEL LISTENERS'
+                        : compatScore >= 30 ? 'COMMON GROUND'
+                            : compatScore >= 15 ? 'DISTANT COUSINS'
+                                : 'COMPLETE OPPOSITES';
+
             const renderData = {
                 bgUrl: '', // Will populate below
                 userA: {
                     avatarUrl: avatarAUrl,
                     displayName: displayNameA,
                     username: usernameA,
-                    scrobbles: userInfoA?.playcount ? `${Number(userInfoA.playcount).toLocaleString()} scrobbles` : 'Scrobbles hidden',
-                    topArtists: namesA.slice(0, 6).map((name, i) => ({
+                    scrobbles: userInfoA?.playcount ? `${Number(userInfoA.playcount).toLocaleString()}` : '0',
+                    topArtists: namesA.slice(0, 8).map((name, i) => ({
                         rank: i + 1,
-                        name: truncate(name, 25),
-                        isShared: namesB.map(b => b.toLowerCase()).includes(name.toLowerCase())
+                        name: truncate(name, 26),
+                        isShared: namesB.some(b => b.toLowerCase().trim() === name.toLowerCase().trim())
                     }))
                 },
                 userB: {
                     avatarUrl: avatarBUrl,
                     displayName: displayNameB,
                     username: usernameB,
-                    scrobbles: targetDbUser && userInfoB?.playcount ? `${Number(userInfoB.playcount).toLocaleString()} scrobbles` : '',
-                    topArtists: namesB.slice(0, 6).map((name, i) => ({
+                    scrobbles: targetDbUser && userInfoB?.playcount ? `${Number(userInfoB.playcount).toLocaleString()}` : '0',
+                    topArtists: namesB.slice(0, 8).map((name, i) => ({
                         rank: i + 1,
-                        name: truncate(name, 25),
-                        isShared: namesA.map(a => a.toLowerCase()).includes(name.toLowerCase())
+                        name: truncate(name, 26),
+                        isShared: namesA.some(a => a.toLowerCase().trim() === name.toLowerCase().trim())
                     }))
                 },
                 compatScore,
-                compatColor: compatScore >= 75 ? '#a8f0a0' : compatScore >= 50 ? '#f0e08a' : compatScore >= 25 ? '#f0b47a' : '#f07a7a',
-                sharedArtists: sharedArtists.slice(0, 3),
-                bridgeTracks: bridgeTracks.slice(0, 7).map(t => ({
-                    track: truncate(t.track, 30),
-                    artist: truncate(t.artist, 25),
+                compatColor: compatScore >= 85 ? '#f0d060' : compatScore >= 70 ? '#ff8c5f' : compatScore >= 45 ? '#a875ff' : '#f07a7a',
+                scoreLabel,
+                sharedArtists: sharedArtists.slice(0, 8),
+                bridgeTracks: bridgeTracks.slice(0, 5).map(t => ({
+                    track: truncate(t.track, 25),
+                    artist: truncate(t.artist, 20),
                     coverUrl: t.cover
                 })),
                 periodLabel: periodLabelText.toUpperCase()
             };
+
+            // ── Mosaic Background ──
+            const mosaicPool = [
+                ...topAlbumsA.map(a => a.image?.[2]?.['#text'] || a.image?.[1]?.['#text']).filter(Boolean),
+                ...topAlbumsB.map(a => a.image?.[2]?.['#text'] || a.image?.[1]?.['#text']).filter(Boolean),
+                ...bridgeTracks.map(t => t.cover).filter(Boolean)
+            ];
+            // Fill with randoms if needed or just shuffle and repeat
+            const shuffledMosaic = [...mosaicPool].sort(() => Math.random() - 0.5).slice(0, 20);
+            (renderData as any).mosaicCovers = shuffledMosaic;
+            console.log(`[songtwin] Generated mosaic with ${shuffledMosaic.length} covers.`);
 
             // ── Background URL ──
             if (bgPool.length > 0) {
@@ -329,8 +383,8 @@ export default class SongTwinCommand extends BaseCommand {
                 }
             }
 
-            // ── Render with Puppeteer ──
-            const buffer = await PuppeteerService.render('songtwin', renderData, { width: 900, height: 600 });
+            // ── Render with Puppeteer (1200x700 for Pro aesthetics) ──
+            const buffer = await PuppeteerService.render('songtwin', renderData, { width: 1200, height: 700 });
 
             // ── Upload via staging ──
             let cdnUrl: string | null = null;
@@ -350,12 +404,6 @@ export default class SongTwinCommand extends BaseCommand {
                 }
             }
 
-            // ── Build score label ──
-            const scoreLabel = compatScore >= 80 ? '🔥 Sonic Soulmates'
-                : compatScore >= 60 ? '💜 Great Taste Overlap'
-                    : compatScore >= 40 ? '🎵 Some Common Ground'
-                        : compatScore >= 20 ? '🎧 Different Worlds'
-                            : '👽 Complete Opposites';
 
             const contentText = [
                 `###  Song Twin — ${scoreLabel}`,

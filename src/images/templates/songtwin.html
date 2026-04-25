@@ -3,17 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Outfit:wght@300;600;900&family=Space+Grotesk:wght@300;700&display=swap');
 
         :root {
-            --accent-purple: #9d70ff;
-            --accent-orange: #ff8c5f;
-            --bg-dark: #020205;
-            --glass: rgba(0, 0, 0, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --text-main: #ffffff;
-            --text-dim: rgba(255, 255, 255, 0.5);
-            --text-muted: rgba(255, 255, 255, 0.3);
+            --accent: {{compatColor}};
+            --bg-black: #000000;
         }
 
         * {
@@ -23,10 +17,10 @@
         }
 
         body {
-            width: 900px;
-            height: 600px;
-            background: var(--bg-dark);
-            font-family: 'Inter', sans-serif;
+            width: 1200px;
+            height: 700px;
+            background: var(--bg-black);
+            font-family: 'Outfit', sans-serif;
             color: white;
             overflow: hidden;
             display: flex;
@@ -34,425 +28,249 @@
             align-items: center;
         }
 
-        #background {
+        /* MOSAIC BACKGROUND: CLEAN & VISIBLE */
+        #mosaic {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('{{bgUrl}}');
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            filter: grayscale(0.2) brightness(0.5) contrast(1.1);
+            z-index: -2;
+        }
+
+        .tile {
+            width: 100%;
+            aspect-ratio: 1/1;
             background-size: cover;
             background-position: center;
-            filter: blur(40px) brightness(0.25);
-            transform: scale(1.1);
+        }
+
+        #vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 20%, rgba(0,0,0,0.9) 100%);
             z-index: -1;
         }
 
-        #overlay {
+        /* MASSIVE LEGIBLE SCORE */
+        #giant-score {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at 50% 50%, rgba(10, 5, 20, 0.4) 0%, rgba(2, 2, 5, 0.9) 100%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Syncopate', sans-serif;
+            font-size: 450px;
+            line-height: 1;
+            color: rgba(255, 255, 255, 0.22);
             z-index: 0;
+            user-select: none;
+            letter-spacing: -20px;
+            font-weight: 700;
         }
 
-        #container {
+        /* CONTENT LAYER */
+        #layout {
             position: relative;
             z-index: 1;
-            width: 100%;
-            height: 100%;
-            padding: 12px;
-            display: grid;
-            grid-template-columns: 300px 1fr 300px;
-            grid-template-rows: 370px 190px;
-            gap: 10px;
-        }
-
-        .panel {
-            background: var(--glass);
-            backdrop-filter: blur(25px) saturate(180%);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 20px;
+            width: 1120px;
+            height: 640px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-            overflow: hidden;
+            justify-content: space-between;
         }
 
-        /* User Side Panels */
-        .user-panel {
+        /* MINIMALIST HEADERS */
+        .header {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            text-align: center;
         }
 
-        .user-panel.left {
-            border-left: 2px solid rgba(157, 112, 255, 0.3);
-            background: linear-gradient(135deg, rgba(128, 80, 255, 0.05), transparent);
-        }
-
-        .user-panel.right {
-            border-right: 2px solid rgba(255, 140, 95, 0.3);
-            background: linear-gradient(225deg, rgba(255, 112, 64, 0.05), transparent);
-        }
-
-        .avatar-container {
-            position: relative;
-            margin-bottom: 16px;
+        .user-node {
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
 
         .avatar {
-            width: 80px;
-            height: 80px;
+            width: 90px;
+            height: 90px;
             border-radius: 50%;
             object-fit: cover;
-            border: 3px solid transparent;
+            border: 2px solid rgba(255, 255, 255, 0.2);
         }
 
-        .left .avatar { border-color: var(--accent-purple); box-shadow: 0 0 20px rgba(128, 80, 255, 0.2); }
-        .right .avatar { border-color: var(--accent-orange); box-shadow: 0 0 20px rgba(255, 112, 64, 0.2); }
-
-        .display-name {
-            font-family: 'Outfit', sans-serif;
-            font-size: 20px;
-            font-weight: 800;
-            margin-bottom: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            width: 100%;
-        }
-
-        .username {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.5);
-            margin-bottom: 20px;
-        }
-
-        .top-list {
-            width: 100%;
-            text-align: left;
-            margin-top: 10px;
-        }
-
-        .top-list-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-        }
-
-        .artist-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 6px;
-            font-size: 13px;
-            position: relative;
-        }
-
-        .artist-rank {
-            color: rgba(255, 255, 255, 0.3);
-            margin-right: 8px;
-            font-weight: 700;
-            width: 18px;
-        }
-
-        .artist-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 180px;
-        }
-
-        .artist-item.shared .artist-name {
-            color: #fff;
-            font-weight: 700;
-        }
-
-        .artist-item.shared::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-        }
-
-        .left .artist-item.shared .artist-name { color: #c8aaff; }
-        .left .artist-item.shared::after { background: #c8aaff; box-shadow: 0 0 8px #c8aaff; }
-        
-        .right .artist-item.shared .artist-name { color: #ffb07a; }
-        .right .artist-item.shared::after { background: #ffb07a; box-shadow: 0 0 8px #ffb07a; }
-
-        .scrobble-count {
-            margin-top: auto;
-            font-size: 11px;
-            color: var(--text-muted);
-            padding-top: 10px;
-        }
-
-        /* Center Panel */
-        .center-panel {
-            align-items: center;
-            justify-content: flex-start;
-            padding: 30px 15px;
-        }
-
-        .vs-label {
-            font-family: 'Outfit', sans-serif;
+        .name {
+            font-size: 28px;
             font-weight: 900;
-            font-size: 32px;
-            letter-spacing: 4px;
-            color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 20px;
-        }
-
-        .score-container {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .score-value {
-            font-family: 'Outfit', sans-serif;
-            font-size: 84px;
-            font-weight: 800;
-            line-height: 1;
-            margin-bottom: 4px;
-            text-shadow: 0 0 30px rgba(255,255,255,0.15);
-            color: var(--score-color);
-            letter-spacing: -2px;
-        }
-
-        .score-label {
-            font-size: 12px;
-            font-weight: 800;
-            color: rgba(255, 255, 255, 0.4);
-            letter-spacing: 2px;
+            letter-spacing: -1px;
             text-transform: uppercase;
         }
 
-        .progress-bar {
-            width: 180px;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-            margin: 15px auto;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(to right, var(--accent-purple), var(--accent-orange));
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(128, 80, 255, 0.5);
-            width: var(--score-width);
-        }
-
-        .shared-section {
-            width: 100%;
+        /* CENTER TIER: WIDE EDITORIAL */
+        .center-score {
             text-align: center;
+            margin-top: -20px;
+        }
+
+        .tier-text {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 34px;
+            letter-spacing: 6px;
+            color: var(--accent);
+            text-shadow: 0 0 30px rgba(var(--accent-rgb), 0.4);
+        }
+
+        /* ARTIST LISTS: CLEAN TEXT */
+        .main-columns {
+            display: grid;
+            grid-template-columns: 350px 1fr 350px;
+            gap: 40px;
             margin-top: 20px;
         }
 
-        .shared-title {
+        .artist-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .list-header {
+            font-family: 'Space Grotesk', sans-serif;
             font-size: 11px;
             font-weight: 700;
+            letter-spacing: 5px;
             color: rgba(255, 255, 255, 0.3);
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
-        .shared-list {
-            list-style: none;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .shared-artist {
-            color: var(--text-main);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-            margin-bottom: 4px;
-        }
-
-        /* Bridge Tracks */
-        .bridge-container {
-            grid-column: 1 / span 3;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 12px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .bridge-header {
-            font-size: 10px;
-            font-weight: 700;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 8px;
-        }
-
-        .tracks-row {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            width: 100%;
-        }
-
-        .track-card {
-            width: 105px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .track-art {
-            width: 105px;
-            height: 105px;
-            border-radius: 8px;
-            object-fit: cover;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
-        }
-
-        .track-info {
-            text-align: center;
-        }
-
-        .track-name {
-            font-size: 12px;
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            color: rgba(255, 255, 255, 0.95);
-        }
-
-        .track-artist {
-            font-size: 10px;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .artist-item {
+            font-size: 17px;
             font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
-        .footer {
+        .artist-item.shared {
+            color: #fff;
+            font-weight: 900;
+        }
+
+        .shared::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        /* MASSIVE GALLERY */
+        .gallery-row {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .gallery-art {
+            width: 150px;
+            height: 150px;
+            border-radius: 12px;
+            object-fit: cover;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .period-tag {
             position: absolute;
-            bottom: 10px;
-            left: 0;
-            width: 100%;
-            text-align: center;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Space Grotesk', sans-serif;
             font-size: 10px;
             color: rgba(255, 255, 255, 0.2);
+            letter-spacing: 12px;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            pointer-events: none;
         }
+
     </style>
 </head>
-<body style="--score-color: {{compatColor}}; --score-width: {{compatScore}}%;">
-    <div id="background"></div>
-    <div id="overlay"></div>
+<body style="--accent: {{compatColor}};">
+    <div id="mosaic">
+        {{#each mosaicCovers}}
+        <div class="tile" style="background-image: url('{{this}}')"></div>
+        {{/each}}
+    </div>
+    <div id="vignette"></div>
+    <div id="giant-score">{{compatScore}}</div>
 
-    <div id="container">
-        <!-- User A -->
-        <div class="panel user-panel left">
-            <div class="avatar-container">
-                <img src="{{userA.avatarUrl}}" class="avatar" onerror="this.src='https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png'">
+    <div id="layout">
+        <!-- Minimal Headers -->
+        <div class="header">
+            <div class="user-node">
+                <img src="{{userA.avatarUrl}}" class="avatar">
+                <div class="name">{{userA.displayName}}</div>
             </div>
-            <h1 class="display-name">{{userA.displayName}}</h1>
-            <p class="username">{{userA.username}}</p>
-            
-            <div class="top-list">
-                <p class="top-list-title">Top Artists</p>
+
+            <div class="center-score">
+                <div class="tier-text">{{scoreLabel}}</div>
+            </div>
+
+            <div class="user-node" style="flex-direction: row-reverse; text-align: right;">
+                <img src="{{userB.avatarUrl}}" class="avatar">
+                <div class="name">{{userB.displayName}}</div>
+            </div>
+        </div>
+
+        <!-- Clean Columns -->
+        <div class="main-columns">
+            <div class="artist-list">
+                <div class="list-header">Profile Alpha</div>
                 {{#each userA.topArtists}}
                 <div class="artist-item {{#if isShared}}shared{{/if}}">
-                    <span class="artist-rank">{{rank}}</span>
-                    <span class="artist-name">{{name}}</span>
+                    {{name}}
                 </div>
                 {{/each}}
             </div>
 
-            <p class="scrobble-count">{{userA.scrobbles}}</p>
-        </div>
+            <div></div> <!-- Spacer for Score -->
 
-        <!-- Center Comparison -->
-        <div class="panel center-panel">
-            <div class="vs-label">VS</div>
-            
-            <div class="score-container">
-                <div class="score-value">{{compatScore}}%</div>
-                <div class="score-label">Compatibility</div>
-                <div class="progress-bar">
-                    <div class="progress-fill"></div>
-                </div>
-            </div>
-
-            <div class="shared-section">
-                <p class="shared-title">Shared Artists</p>
-                <div class="shared-list">
-                    {{#each sharedArtists}}
-                    <div class="shared-artist">{{this}}</div>
-                    {{else}}
-                    <div class="shared-artist" style="opacity: 0.3; font-style: italic;">No shared artists</div>
-                    {{/each}}
-                </div>
-            </div>
-        </div>
-
-        <!-- User B -->
-        <div class="panel user-panel right">
-            <div class="avatar-container">
-                <img src="{{userB.avatarUrl}}" class="avatar" onerror="this.src='https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png'">
-            </div>
-            <h1 class="display-name">{{userB.displayName}}</h1>
-            <p class="username">{{userB.username}}</p>
-
-            <div class="top-list">
-                <p class="top-list-title">Top Artists</p>
+            <div class="artist-list" style="text-align: right;">
+                <div class="list-header">Profile Beta</div>
                 {{#each userB.topArtists}}
-                <div class="artist-item {{#if isShared}}shared{{/if}}">
-                    <span class="artist-rank">{{rank}}</span>
-                    <span class="artist-name">{{name}}</span>
-                </div>
-                {{/each}}
-            </div>
-
-            <p class="scrobble-count">{{userB.scrobbles}}</p>
-        </div>
-
-        <!-- Bridge Tracks -->
-        <div class="bridge-container">
-            <p class="bridge-header">Bridge Tracks</p>
-            <div class="tracks-row">
-                {{#each bridgeTracks}}
-                <div class="track-card">
-                    <img src="{{coverUrl}}" class="track-art" onerror="this.src='https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png'">
-                    <div class="track-info">
-                        <div class="track-name">{{track}}</div>
-                        <div class="track-artist">{{artist}}</div>
-                    </div>
+                <div class="artist-item {{#if isShared}}shared{{/if}}" style="flex-direction: row-reverse;">
+                    {{name}}
                 </div>
                 {{/each}}
             </div>
         </div>
+
+        <!-- Massive Gallery -->
+        <div class="gallery-row">
+            {{#each bridgeTracks}}
+            <img src="{{coverUrl}}" class="gallery-art">
+            {{/each}}
+        </div>
+
+        <div class="period-tag">{{periodLabel}}</div>
     </div>
 
-    <div class="footer">Song Twin &middot; {{periodLabel}}</div>
+    <script>
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 255, 255';
+        }
+        document.body.style.setProperty('--accent-rgb', hexToRgb('{{compatColor}}'));
+    </script>
 </body>
 </html>

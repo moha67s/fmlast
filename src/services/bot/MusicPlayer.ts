@@ -302,7 +302,7 @@ export class MusicPlayer {
         }
     }
 
-    private static async updateNowPlayingMessage(guildId: string) {
+    public static async updateNowPlayingMessage(guildId: string) {
         const queue = QueueManager.getQueue(guildId);
         if (!queue || !queue.nowPlayingMessage || !queue.isPlaying) return;
 
