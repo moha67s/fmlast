@@ -36,6 +36,8 @@ export default class PlayCommand extends BaseCommand {
             return;
         }
 
+        if (!isSlash) await interactionOrMessage.channel.sendTyping();
+
         if (!isPrefix && !interactionOrMessage.deferred) await interactionOrMessage.deferReply();
 
         let query = args.join(' ');

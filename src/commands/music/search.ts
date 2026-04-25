@@ -23,6 +23,8 @@ export default class SearchCommand extends BaseCommand {
         const guildId = interactionOrMessage.guildId;
         if (!guildId) return;
 
+        if (!isSlash) await interactionOrMessage.channel.sendTyping().catch(() => {});
+
         const query = isSlash 
             ? interactionOrMessage.options.getString('query', true)
             : args?.join(' ');
