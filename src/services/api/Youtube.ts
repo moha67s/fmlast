@@ -209,11 +209,9 @@ function getAuthFlags(attempt = 1): string[] {
         youtubeArgs.push('player_skip=webpage,configs');
     }
 
-    // ATTEMPT 1: PO Token Route (Unauthenticated, uses visitorData)
+    // ATTEMPT 1: PO Token Route (Unauthenticated)
+    // Let the bgutil plugin handle visitorData internally to avoid IP mismatches.
     if (attempt === 1 && config.POTOKEN_SERVER) {
-        const vData = currentVisitorData || config.YT_VISITOR_DATA;
-        if (vData) youtubeArgs.push(`visitor_data=${vData}`);
-
         const flags: string[] = [
             '--extractor-args', `youtube:${youtubeArgs.join(';')}`
         ];
@@ -227,7 +225,7 @@ function getAuthFlags(attempt = 1): string[] {
         return flags;
     }
 
-    // ATTEMPT 2 & 3: Mobile/Cookie Route (Authenticated, NO visitorData, NO PO Token Provider)
+    // ATTEMPT 2 & 3: Mobile/Cookie Route (Authenticated, NO PO Token Provider)
     // We add --use-extractors "youtube" to BYPASS the failing youtube+GetPOT plugin
     return [
         '--extractor-args', `youtube:${youtubeArgs.join(';')}`,
@@ -500,16 +498,8 @@ export class Youtube {
         const sanitizedUrl = url.trim();
 
         for (let attempt = 1; attempt <= STREAM_RETRY_ATTEMPTS; attempt++) {
-            // Attempt 1: Try zero-latency copy mode (Safe since we have PO tokens now).
-            // Attempt 2 & 3: Reliable transcode fallbacks.
             const mode: StreamMode = attempt === 1 ? 'copy' : 'transcode';
             try {
-                // Ensure we have fresh visitorData for the first playback of the session
-                if (attempt === 1 && !initialVisitorDataRefreshed) {
-                    initialVisitorDataRefreshed = true;
-                    await Youtube.refreshVisitorData().catch(() => {});
-                }
-
                 const { stream, ready } = this.createYtdlpStream(sanitizedUrl, attempt, mode);
                 await ready;
                 console.log(`[Youtube] Audio stream started (mode=${mode}, attempt ${attempt})`);
@@ -529,40 +519,6 @@ export class Youtube {
         throw new Error(`Failed to get audio stream after ${STREAM_RETRY_ATTEMPTS} attempts: ${lastError}`);
     }
 
-    /**
-     * Fetch a fresh visitorData from YouTube's API to ensure PO Tokens work long-term.
-     */
-    static async refreshVisitorData(): Promise<string | null> {
-        try {
-            const body = JSON.stringify({
-                context: {
-                    client: {
-                        clientName: 'WEB',
-                        clientVersion: '2.20240424.01.00'
-                    }
-                }
-            });
-
-            const resp = await fetch('https://www.youtube.com/youtubei/v1/visitor_id', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body
-            });
-
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json() as any;
-            const newVData = data.responseContext?.visitorData;
-
-            if (newVData) {
-                currentVisitorData = newVData;
-                console.log(`[Youtube] 🔄 Automatically refreshed visitorData: ${newVData.substring(0, 10)}...`);
-                return newVData;
-            }
-        } catch (err) {
-            console.warn('[Youtube] ⚠️ Failed to auto-refresh visitorData:', err);
-        }
-        return null;
-    }
 
     private static createYtdlpStream(
         url: string,
@@ -592,7 +548,6 @@ export class Youtube {
             '--extractor-retries', '3',
             '--js-runtimes', 'node',
             '--force-ipv4',
-            '--rm-cache-dir',
             ...cookieFlags,
         ];
 
