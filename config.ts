@@ -24,4 +24,49 @@ export const config = {
     YT_STREAM_TIMEOUT_MS: 30000,
     YT_PLAYLIST_TIMEOUT_MS: 30000,
     INACTIVITY_TIMEOUT: 300, // 5 minutes
+    // Lavalink Settings
+    LAVALINK_NODES: [
+        {
+            name: 'Serenetia (v4)',
+            url: 'lavalinkv4.serenetia.com:443',
+            auth: 'https://seretia.link/discord',
+            secure: true
+        },
+        {
+            name: 'Jirayu (v4)',
+            url: 'lavalink.jirayu.net:443',
+            auth: 'youshallnotpass',
+            secure: true
+        },
+        {
+            name: 'Trinium (v4)',
+            url: 'lavalink-v4.triniumhost.com:443',
+            auth: 'free',
+            secure: true
+        },
+        {
+            name: 'Lexislohr (v4)',
+            url: 'lavalink.lexislohr.de:443',
+            auth: 'youshallnotpass',
+            secure: true
+        },
+        {
+            name: 'Ajieanthony (v4)',
+            url: 'lavalink-v4.ajieanthony.com:443',
+            auth: 'youshallnotpass',
+            secure: true
+        },
+        {
+            name: 'Cebulawka (v4)',
+            url: 'lavalink.cebulawka.xyz:443',
+            auth: 'youshallnotpass',
+            secure: true
+        },
+        {
+            name: 'Millohost (v4)',
+            url: 'lava-v4.millohost.my.id:443',
+            auth: 'https://discord.gg/mjS5J2K3ep',
+            secure: true
+        }
+    ],
 };

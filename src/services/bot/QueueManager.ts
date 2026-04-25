@@ -1,4 +1,5 @@
-import { AudioPlayer, createAudioPlayer, NoSubscriberBehavior, VoiceConnection } from '@discordjs/voice';
+import { shoukaku } from '../../index';
+import { Player } from 'shoukaku';
 import { TextChannel, Message } from 'discord.js';
 import { YoutubeResult } from '../api/Youtube';
 import { config } from '../../../config';
@@ -8,8 +9,7 @@ export type RepeatMode = 'off' | 'one' | 'all';
 export interface GuildQueue {
     textChannel: TextChannel;
     voiceChannelId: string;
-    connection: VoiceConnection | null;
-    player: AudioPlayer | null;
+    player: Player | null;
     tracks: YoutubeResult[];
     currentTrack: YoutubeResult | null;
     isPlaying: boolean;
@@ -17,7 +17,6 @@ export interface GuildQueue {
     repeatMode: RepeatMode;
     repeatCount: number;
     consecutiveErrors: number;
-    currentResource: any | null;
     nowPlayingMessage?: Message;
     progressInterval?: NodeJS.Timeout;
     inactivityTimer?: NodeJS.Timeout;
@@ -39,18 +38,11 @@ export class QueueManager {
         guildId: string, 
         textChannel: TextChannel, 
         voiceChannelId: string, 
-        connection: VoiceConnection
+        player: Player
     ): GuildQueue {
-        const player = createAudioPlayer({
-            behaviors: {
-                noSubscriber: NoSubscriberBehavior.Play,
-            },
-        });
-
         const queue: GuildQueue = {
             textChannel,
             voiceChannelId,
-            connection,
             player,
             tracks: [],
             currentTrack: null,
@@ -59,10 +51,8 @@ export class QueueManager {
             repeatMode: 'off',
             repeatCount: 0,
             consecutiveErrors: 0,
-            currentResource: null,
         };
 
-        connection.subscribe(player);
         queues.set(guildId, queue);
         return queue;
     }
@@ -74,9 +64,9 @@ export class QueueManager {
         if (queue.inactivityTimer) clearTimeout(queue.inactivityTimer);
         if (queue.progressInterval) clearInterval(queue.progressInterval);
         
-        queue.player?.stop(true);
+        queue.player?.stopTrack();
         try {
-            queue.connection?.destroy();
+            shoukaku.leaveVoiceChannel(guildId);
         } catch {}
 
         queues.delete(guildId);

@@ -1,12 +1,5 @@
-import {
-    AudioPlayerStatus,
-    createAudioResource,
-    joinVoiceChannel,
-    VoiceConnectionStatus,
-    NoSubscriberBehavior,
-    StreamType,
-    entersState
-} from '@discordjs/voice';
+import { shoukaku } from '../../index';
+import { Player, Track, TrackExceptionEvent, TrackEndEvent } from 'shoukaku';
 import { Youtube, YoutubeResult } from '../api/Youtube';
 import { VoiceChannel, TextChannel, Message } from 'discord.js';
 import { ScrobbleService } from './ScrobbleService';
@@ -20,47 +13,57 @@ const RECONNECT_ATTEMPTS = 3;
 const RECONNECT_BASE_DELAY_MS = 5000;
 
 export class MusicPlayer {
-    /**
-     * Join a voice channel and set up the connection
-     */
     static async join(guildId: string, voiceChannelId: string, textChannel: TextChannel): Promise<GuildQueue> {
         let queue = QueueManager.getQueue(guildId);
 
-        if (!queue || !queue.connection || queue.connection.state.status === VoiceConnectionStatus.Disconnected) {
-            const connection = joinVoiceChannel({
-                channelId: voiceChannelId,
+        if (!queue || !queue.player) {
+            const node = shoukaku.options.nodeResolver(shoukaku.nodes);
+            if (!node) throw new Error('No Lavalink nodes available');
+
+            const player = await shoukaku.joinVoiceChannel({
                 guildId: guildId,
-                adapterCreator: textChannel.guild.voiceAdapterCreator,
+                channelId: voiceChannelId,
+                shardId: 0, // In standard bots shard 0 is fine, for large bots this needs dynamic lookup
+                deaf: true
             });
 
             if (!queue) {
-                queue = QueueManager.createQueue(guildId, textChannel, voiceChannelId, connection);
+                queue = QueueManager.createQueue(guildId, textChannel, voiceChannelId, player);
             } else {
-                queue.connection = connection;
-                connection.subscribe(queue.player!);
+                queue.player = player;
             }
 
-            connection.on(VoiceConnectionStatus.Disconnected, async () => {
-                console.warn(`[MusicPlayer] Voice connection lost for guild ${guildId}, attempting recovery...`);
-                for (let attempt = 1; attempt <= RECONNECT_ATTEMPTS; attempt++) {
-                    try {
-                        await Promise.race([
-                            entersState(connection, VoiceConnectionStatus.Signalling, RECONNECT_BASE_DELAY_MS),
-                            entersState(connection, VoiceConnectionStatus.Connecting, RECONNECT_BASE_DELAY_MS),
-                            entersState(connection, VoiceConnectionStatus.Ready, RECONNECT_BASE_DELAY_MS),
-                        ]);
-                        console.log(`[MusicPlayer] Voice connection recovered for guild ${guildId} on attempt ${attempt}`);
-                        return;
-                    } catch {
-                        console.warn(`[MusicPlayer] Voice reconnection attempt ${attempt}/${RECONNECT_ATTEMPTS} failed for guild ${guildId}`);
-                    }
-                }
-                console.error(`[MusicPlayer] Reconnection failed for guild ${guildId}, cleaning up`);
-                this.stop(guildId);
-            });
+            // Hook events immediately
+            this.setupPlayerEvents(guildId);
         }
 
         return queue;
+    }
+
+    private static setupPlayerEvents(guildId: string) {
+        const queue = QueueManager.getQueue(guildId);
+        if (!queue || !queue.player) return;
+
+        queue.player.on('start', () => {
+            console.log(`[Lavalink] Playback started in guild ${guildId}`);
+            queue.isPlaying = true;
+            queue.isPaused = false;
+            this.startProgressUpdate(guildId);
+        });
+
+        queue.player.on('end', (data: TrackEndEvent) => {
+            if (data.reason === 'replaced') return;
+            console.log(`[Lavalink] Track ended in guild ${guildId}`);
+            queue.isPlaying = false;
+            this.processQueue(guildId).catch(err => console.error(`[MusicPlayer] Auto-play failed:`, err));
+        });
+
+        queue.player.on('exception', (data: TrackExceptionEvent) => {
+            console.error(`[Lavalink] Player Exception in guild ${guildId}:`, data.exception.message);
+            queue.textChannel.send(`⚠️ Error playing **${queue.currentTrack?.title}**: ${data.exception.message}`);
+            queue.isPlaying = false;
+            this.processQueue(guildId, 1).catch(() => { });
+        });
     }
 
     /**
@@ -91,7 +94,7 @@ export class MusicPlayer {
         const queue = QueueManager.getQueue(guildId);
         if (queue && queue.player) {
             this.stopProgressUpdate(guildId);
-            queue.player.stop();
+            queue.player.stopTrack();
             return true;
         }
         return false;
@@ -105,7 +108,7 @@ export class MusicPlayer {
     static pause(guildId: string) {
         const queue = QueueManager.getQueue(guildId);
         if (queue && queue.player && !queue.isPaused) {
-            queue.player.pause();
+            queue.player.setPaused(true);
             queue.isPaused = true;
             this.stopProgressUpdate(guildId);
             this.updateNowPlayingMessage(guildId);
@@ -117,7 +120,7 @@ export class MusicPlayer {
     static resume(guildId: string) {
         const queue = QueueManager.getQueue(guildId);
         if (queue && queue.player && queue.isPaused) {
-            queue.player.unpause();
+            queue.player.setPaused(false);
             queue.isPaused = false;
             this.startProgressUpdate(guildId);
             this.updateNowPlayingMessage(guildId);
@@ -171,46 +174,24 @@ export class MusicPlayer {
         }
 
         try {
-            console.log(`[MusicPlayer] 🎵 Fetching stream for: ${track.title}`);
+            console.log(`[MusicPlayer] 🎵 Resolving track for: ${track.title}`);
 
-            const { stream } = await Youtube.getAudioStream(track.url);
+            if (!queue.player) throw new Error('Player not initialized');
+            const node = queue.player.node;
+            const result = await node.rest.resolve(track.url);
 
-            const resource = createAudioResource(stream, {
-                inputType: StreamType.OggOpus,
-                inlineVolume: true
-            });
+            if (!result || !result.data || result.loadType === 'error' || result.loadType === 'empty') {
+                throw new Error('Lavalink could not resolve this track.');
+            }
 
+            const lavalinkTrack = Array.isArray(result.data) ? result.data[0] : result.data;
+            
             queue.currentTrack = track;
-            queue.currentResource = resource;
-            queue.isPlaying = true;
-            queue.isPaused = false;
+            
+            if (!queue.player) throw new Error('Player not initialized');
+            await queue.player.playTrack({ track: lavalinkTrack as any });
 
-            const cleanUp = () => {
-                queue.player?.removeAllListeners(AudioPlayerStatus.Idle);
-                queue.player?.removeAllListeners('error');
-            };
-
-            const onIdle = () => {
-                cleanUp();
-                queue.isPlaying = false;
-                // We don't clear currentTrack here so getNextTrack can see it for repeat logic
-                this.processQueue(guildId).catch(err => console.error(`[MusicPlayer] Auto-play failed:`, err));
-            };
-
-            const onError = (error: any) => {
-                cleanUp();
-                console.error(`[MusicPlayer] Audio Player Error in guild ${guildId}:`, error);
-                queue.textChannel.send(`⚠️ Error playing **${track!.title}**: ${error.message}`);
-                queue.isPlaying = false;
-                this.processQueue(guildId, _skipCount + 1).catch(() => { });
-            };
-
-            queue.player?.on(AudioPlayerStatus.Idle, onIdle);
-            queue.player?.on('error', onError);
-
-            queue.player?.play(resource);
-
-            console.log(`[MusicPlayer] ✅ Playback started: ${track.title}`);
+            console.log(`[MusicPlayer] ✅ Playback initiated: ${track.title}`);
 
             // Render UI
             await this.sendPlaybackUI(guildId, track);
@@ -309,7 +290,7 @@ export class MusicPlayer {
         const track = queue.currentTrack;
         if (!track) return;
 
-        const elapsed = queue.currentResource ? Math.floor(queue.currentResource.playbackDuration / 1000) : 0;
+        const elapsed = queue.player ? Math.floor(queue.player.position / 1000) : 0;
         const ui = this.buildPlaybackUI(guildId, track, elapsed, queue.isPaused);
 
         try {
