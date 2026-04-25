@@ -620,6 +620,8 @@ export class Youtube {
             '--socket-timeout', '15',
             '--extractor-retries', '3',
             '--js-runtimes', 'node',
+            '--force-ipv4',
+            '--rm-cache-dir',
             ...cookieFlags,
         ];
 
