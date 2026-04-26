@@ -181,6 +181,20 @@ export class LastFM {
         });
     }
 
+    /**
+     * Get total scrobble count for a specific time window (from/to unix timestamps).
+     * Uses limit=1 and reads the `@attr.total` field — very cheap API call.
+     */
+    static async getScrobbleCountForPeriod(username: string, from: number, to: number, sessionKey?: string | null): Promise<number> {
+        const data = await this.request('user.getRecentTracks', username, {
+            limit: '1',
+            from:  String(from),
+            to:    String(to),
+            extended: '0',
+        }, sessionKey);
+        return parseInt(data.recenttracks?.['@attr']?.total || '0', 10);
+    }
+
     /** Get top artists - with fallback to recent track counting if endpoint is down */
     static async getTopArtists(username: string, period: string, limit: number, sessionKey?: string | null): Promise<any[]> {
         try {

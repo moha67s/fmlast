@@ -183,6 +183,49 @@ async function handleIndexing(job: Job<IndexJobData>) {
         console.log(`[Queue] Successfully committed ${_type} index for ${username}. No cursor advancement needed.`);
     }
     CrownService.reconcileUser(user.id).catch(err => console.error(`[Queue] Crown re-sync failed:`, err));
+
+    // Fire-and-forget: backfill missing track durations for top tracks
+    backfillTrackDurations(user.id, username, sessionKey).catch(() => {});
+}
+
+/**
+ * Lazily populate `duration` on UserTrack rows that haven't been checked yet.
+ * Processes up to 50 tracks per sync, highest-playcount first, so the most
+ * impactful tracks (for weighted-average listening time) are filled first.
+ */
+async function backfillTrackDurations(userId: string, username: string, sessionKey: string | null) {
+    try {
+        const tracks = await prisma.userTrack.findMany({
+            where: { userId, duration: null },
+            orderBy: { playcount: 'desc' },
+            take: 50,
+        });
+
+        if (tracks.length === 0) return;
+        console.log(`[Queue] Backfilling durations for ${tracks.length} tracks of ${username}...`);
+
+        let filled = 0;
+        for (const track of tracks) {
+            try {
+                const info = await LastFM.getTrackInfo(track.artistName, track.trackName, username, sessionKey);
+                let dur = parseInt(info?.duration || '0', 10);
+                // Last.fm returns milliseconds, convert to seconds
+                if (dur > 0) dur = Math.floor(dur / 1000);
+
+                // Only store real durations (> 30s). Tracks with no duration stay null
+                // and will be retried next sync until Last.fm knows them.
+                if (dur > 30) {
+                    await prisma.userTrack.update({ where: { id: track.id }, data: { duration: dur } });
+                    filled++;
+                }
+            } catch { /* skip individual failures */ }
+            await new Promise(r => setTimeout(r, 150));
+        }
+
+        console.log(`[Queue] Duration backfill done for ${username}: ${filled}/${tracks.length} filled.`);
+    } catch (err) {
+        console.error('[Queue] backfillTrackDurations error:', err);
+    }
 }
 
 async function handleHistoryImport(job: Job<IndexJobData>) {

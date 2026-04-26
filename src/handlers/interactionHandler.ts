@@ -1018,6 +1018,49 @@ export async function handleInteraction(interaction: Interaction, client: Client
         } catch (err) { console.error(err); }
         return;
     }
+
+    // ── User Profile ↔ History toggle ──
+    if (interaction.isButton() && interaction.customId.startsWith('user-profile:')) {
+        const [, requesterId, targetId] = interaction.customId.split(':');
+        if (interaction.user.id !== requesterId) {
+            return interaction.reply({ content: '❌ Only the person who ran this command can use these buttons.', ephemeral: true });
+        }
+        await interaction.deferUpdate();
+        try {
+            const { ProfileService } = await import('../services/bot/ProfileService');
+            const dbUser = await prisma.user.findUnique({ where: { discordId: targetId } });
+            if (!dbUser?.lastfmUsername) {
+                return interaction.followUp({ content: '❌ User not found or not linked.', ephemeral: true });
+            }
+            const payload = await ProfileService.buildProfilePayload(dbUser, requesterId);
+            await interaction.editReply(payload);
+        } catch (err: any) {
+            console.error('[user-profile button]', err);
+            await interaction.followUp({ content: `❌ ${err.message}`, ephemeral: true });
+        }
+        return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('user-history:')) {
+        const [, requesterId, targetId] = interaction.customId.split(':');
+        if (interaction.user.id !== requesterId) {
+            return interaction.reply({ content: '❌ Only the person who ran this command can use these buttons.', ephemeral: true });
+        }
+        await interaction.deferUpdate();
+        try {
+            const { ProfileService } = await import('../services/bot/ProfileService');
+            const dbUser = await prisma.user.findUnique({ where: { discordId: targetId } });
+            if (!dbUser?.lastfmUsername) {
+                return interaction.followUp({ content: '❌ User not found or not linked.', ephemeral: true });
+            }
+            const payload = await ProfileService.buildHistoryPayload(dbUser, requesterId);
+            await interaction.editReply(payload);
+        } catch (err: any) {
+            console.error('[user-history button]', err);
+            await interaction.followUp({ content: `❌ ${err.message}`, ephemeral: true });
+        }
+        return;
+    }
 }
 
 export async function handleUpdate(oldMsg: Message, newMsg: Message) {

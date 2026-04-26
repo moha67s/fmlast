@@ -82,7 +82,8 @@ model UserTrack {
   artistName String   @map("artist_name") @db.Citext
   trackName  String   @map("track_name") @db.Citext
   playcount  Int      @default(0)
-  
+  duration   Int?     @map("duration") // track duration in seconds, populated lazily from Last.fm
+
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, artistName, trackName])
