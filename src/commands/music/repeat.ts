@@ -1,7 +1,7 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SlashCommandBuilder, ChatInputCommandInteraction, Message } from 'discord.js';
-import { QueueManager, RepeatMode } from '../../services/bot/QueueManager';
+import { QueueManager, RepeatMode } from '../../services/music/QueueManager';
 
 export default class RepeatCommand extends BaseCommand {
     name = 'repeat';

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1080px;
+            height: 1920px;
+            background-color: #8c78f0;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card {
+            width: 960px;
+            height: 1700px;
+            border-radius: 60px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: row;
+            padding: 60px 40px;
+            box-sizing: border-box;
+        }
+
+        /* ---------------- VARIANTS ---------------- */
+        body.style-1 { background-color: #8c78f0; }
+        body.style-1 .card { background-color: #f5f4f0; color: #1e1e1e; }
+        body.style-1 .year-text { color: transparent; -webkit-text-stroke: 15px #ffcc00; }
+        body.style-1 .image-wrapper::before, body.style-1 .image-wrapper::after {
+            background: repeating-conic-gradient(#1e1e1e 0% 25%, #fff 0% 50%) 50% / 40px 40px;
+        }
+
+        body.style-2 { background-color: #f5f4f0; }
+        body.style-2 .card { background-color: #1e1e1e; color: #ffffff; }
+        body.style-2 .year-text { color: transparent; -webkit-text-stroke: 15px #8c78f0; }
+        body.style-2 .image-wrapper::before, body.style-2 .image-wrapper::after {
+            background: repeating-linear-gradient(90deg, #fff, #fff 10px, #1e1e1e 10px, #1e1e1e 20px);
+        }
+
+        body.style-3 { background-color: #ffcc00; }
+        body.style-3 .card { background-color: #f5f4f0; color: #1e1e1e; }
+        body.style-3 .year-text { color: transparent; -webkit-text-stroke: 15px #ff3333; }
+        body.style-3 .image-wrapper::before, body.style-3 .image-wrapper::after {
+            background: repeating-linear-gradient(45deg, #1e1e1e, #1e1e1e 10px, #fff 10px, #fff 20px);
+        }
+
+        /* ---------------- LAYOUT ---------------- */
+        
+        .year-wrapper {
+            width: 140px;
+            height: 100%;
+            position: relative;
+        }
+
+        .year-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            font-size: 480px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -20px;
+            white-space: nowrap;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            margin-left: 20px;
+            overflow: hidden; /* prevent child contents from expanding */
+        }
+
+        .image-wrapper {
+            width: 100%;
+            height: 600px;
+            position: relative;
+            margin-bottom: 60px;
+        }
+
+        .image-wrapper::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 60px; z-index: 1; }
+        .image-wrapper::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 60px; z-index: 1; }
+
+        .artist-img {
+            position: absolute;
+            top: 60px; left: 0;
+            width: 100%; height: 480px;
+            object-fit: cover;
+            border-left: 8px solid currentColor;
+            border-right: 8px solid currentColor;
+            box-sizing: border-box;
+            z-index: 2;
+        }
+
+        .lists-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 60px;
+        }
+
+        .list-col { width: 48%; }
+
+        .list-title {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .list-item {
+            font-size: 30px;
+            font-weight: 900;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .list-rank { width: 35px; }
+        
+        .list-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px;
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: auto;
+            margin-bottom: 30px;
+        }
+
+        .stat-col { width: 48%; }
+
+        .stat-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .stat-value {
+            font-size: 45px;
+            font-weight: 900;
+            letter-spacing: -2px;
+            white-space: normal;
+            word-wrap: break-word;
+            line-height: 1.1;
+        }
+    </style>
+</head>
+<body class="style-{{variant}}">
+    <div class="card">
+        <div class="year-wrapper">
+            <div class="year-text">2026</div>
+        </div>
+        
+        <div class="main-content">
+            <div class="image-wrapper">
+                <img src="{{artistImage}}" class="artist-img" />
+            </div>
+
+            <div class="lists-container">
+                <div class="list-col">
+                    <div class="list-title">Top Artists</div>
+                    {{#each topArtists}}
+                    <div class="list-item">
+                        <div class="list-rank">{{this.rank}}</div>
+                        <div class="list-name">{{this.name}}</div>
+                    </div>
+                    {{/each}}
+                </div>
+                <div class="list-col">
+                    <div class="list-title">Top Songs</div>
+                    {{#each topTracks}}
+                    <div class="list-item">
+                        <div class="list-rank">{{this.rank}}</div>
+                        <div class="list-name">{{this.name}}</div>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+
+            <div class="stats-container">
+                <div class="stat-col">
+                    <div class="stat-title">Minutes Listened</div>
+                    <div class="stat-value">{{minutes}}</div>
+                </div>
+                <div class="stat-col">
+                    <div class="stat-title">Top Genre</div>
+                    <div class="stat-value">{{topGenre}}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

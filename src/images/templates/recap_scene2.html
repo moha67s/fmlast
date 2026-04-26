@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1080px;
+            height: 1920px;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* ---------------- AURA BACKGROUNDS ---------------- */
+        .aura {
+            position: absolute;
+            width: 1500px;
+            height: 1500px;
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.6;
+            z-index: 1;
+        }
+
+        /* ---------------- VARIANTS ---------------- */
+        
+        /* Style 1: Cyber Pink/Violet */
+        body.style-1 .aura-1 { top: -200px; left: -300px; background: radial-gradient(circle, #ff00ff, transparent); }
+        body.style-1 .aura-2 { bottom: -300px; right: -400px; background: radial-gradient(circle, #00ffff, transparent); }
+        body.style-1 .big-number { color: #ffffff; text-shadow: 0 0 30px rgba(255, 0, 255, 0.8); }
+
+        /* Style 2: Solar Gold/Orange */
+        body.style-2 .aura-1 { top: 10%; right: -200px; background: radial-gradient(circle, #ffcc00, transparent); }
+        body.style-2 .aura-2 { bottom: 10%; left: -200px; background: radial-gradient(circle, #ff3300, transparent); }
+        body.style-2 .big-number { color: #ffffff; text-shadow: 0 0 30px rgba(255, 204, 0, 0.8); }
+
+        /* Style 3: Electric Green/Emerald */
+        body.style-3 .aura-1 { top: -100px; width: 1800px; background: radial-gradient(circle, #00ff88, transparent); }
+        body.style-3 .aura-2 { bottom: -200px; background: radial-gradient(circle, #0044ff, transparent); }
+        body.style-3 .big-number { color: #ffffff; text-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
+
+        /* ---------------- CONTENT ---------------- */
+
+        .content {
+            z-index: 10;
+            text-align: center;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            font-size: 60px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            opacity: 0.8;
+        }
+
+        .big-number {
+            font-size: 320px;
+            font-weight: 900;
+            margin: 0;
+            line-height: 0.9;
+            letter-spacing: -15px;
+        }
+
+        .label {
+            font-size: 45px;
+            font-weight: 400;
+            margin-top: 20px;
+            margin-bottom: 80px;
+            color: #cccccc;
+        }
+
+        .stats-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            padding: 40px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: left;
+        }
+
+        .stat-title {
+            font-size: 28px;
+            color: #888888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: 900;
+        }
+
+    </style>
+</head>
+<body class="style-{{variant}}">
+    
+    <div class="aura aura-1"></div>
+    <div class="aura aura-2"></div>
+    
+    <div class="content">
+        <div class="header">Listening Time</div>
+        <div class="big-number">{{totalMinutes}}</div>
+        <div class="label">MINUTES</div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Listening Streak</div>
+                <div class="stat-value">That's {{totalDays}} full days of music.</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Global Status</div>
+                <div class="stat-value">Top 1% of listeners worldwide.</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

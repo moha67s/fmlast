@@ -1,7 +1,7 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SlashCommandBuilder, ChatInputCommandInteraction, Message } from 'discord.js';
-import { MusicPlayer } from '../../services/bot/MusicPlayer';
+import { MusicPlayer } from '../../services/music/MusicPlayer';
 
 export default class ResumeCommand extends BaseCommand {
     name = 'resume';

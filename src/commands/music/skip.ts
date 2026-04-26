@@ -1,5 +1,5 @@
 import { BaseCommand } from '../../structures/BaseCommand';
-import { MusicPlayer } from '../../services/bot/MusicPlayer';
+import { MusicPlayer } from '../../services/music/MusicPlayer';
 import { SlashCommandBuilder } from 'discord.js';
 
 export default class SkipCommand extends BaseCommand {

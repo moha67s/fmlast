@@ -1,7 +1,7 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SlashCommandBuilder, ChatInputCommandInteraction, Message } from 'discord.js';
-import { QueueManager } from '../../services/bot/QueueManager';
+import { QueueManager } from '../../services/music/QueueManager';
 
 export default class QueueCommand extends BaseCommand {
     name = 'queue';

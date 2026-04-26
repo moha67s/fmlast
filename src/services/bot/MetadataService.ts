@@ -15,11 +15,30 @@ export class MetadataService {
         if (!finalArtist || !finalTrack) {
             const separators = [' - ', ' – ', ' — ', ' | '];
             let found = false;
+            const channelClean = track.channelTitle ? track.channelTitle.toLowerCase().replace(' - topic', '').replace(/\s+/g, '') : '';
+            
             for (const sep of separators) {
                 if (track.title.includes(sep)) {
                     const parts = track.title.split(sep);
-                    finalArtist = parts[0].trim();
-                    finalTrack = parts[1].trim().replace(/\(.*\)|\[.*\]/g, '').trim();
+                    const part0 = parts[0].trim();
+                    const part1 = parts.slice(1).join(sep).trim().replace(/\(.*\)|\[.*\]/g, '').trim();
+                    
+                    const p0Clean = part0.toLowerCase().replace(/\s+/g, '');
+                    const p1Clean = part1.toLowerCase().replace(/\s+/g, '');
+
+                    // Check if part1 matches the channel title, meaning format is "Track - Artist"
+                    if (channelClean && (p1Clean.includes(channelClean) || channelClean.includes(p1Clean))) {
+                        finalArtist = part1;
+                        finalTrack = part0.replace(/\(.*\)|\[.*\]/g, '').trim();
+                    } else if (channelClean && (p0Clean.includes(channelClean) || channelClean.includes(p0Clean))) {
+                        // "Artist - Track"
+                        finalArtist = part0;
+                        finalTrack = part1;
+                    } else {
+                        // Default to "Artist - Track" as fallback
+                        finalArtist = part0;
+                        finalTrack = part1;
+                    }
                     found = true;
                     break;
                 }

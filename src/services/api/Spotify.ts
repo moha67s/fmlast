@@ -44,10 +44,8 @@ export class Spotify {
         const a = this.clean(actual);
         if (e === a) return true;
         
-        // Allow for common suffixes like "Remastered", "Deluxe", "Expanded"
-        // provided the root name is an exact match.
-        if (a.startsWith(e) && a.length < e.length + 20) return true;
-        if (e.startsWith(a) && e.length < a.length + 20) return true;
+        // Much more permissive for Spotify search results
+        if (a.includes(e) || e.includes(a)) return true;
         
         return false;
     }
@@ -248,13 +246,15 @@ export class Spotify {
         return CacheService.wrap(cacheKey, 604800, async () => {
             try {
                 const token = await this.getToken();
+                const cleanQuery = `${artistName} ${trackName}`.replace(/[^\w\s]/g, '');
 
+                // Try Raw search first (more reliable for bands with spaces)
                 const { data } = await axios.get('https://api.spotify.com/v1/search', {
                     headers: { Authorization: `Bearer ${token}` },
                     params: {
-                        q: `artist:${artistName} track:${trackName}`,
+                        q: cleanQuery,
                         type: 'track',
-                        limit: 3,
+                        limit: 5,
                     },
                 });
 
@@ -268,7 +268,33 @@ export class Spotify {
                         return this.validateArtist(artistName, a.name);
                     });
                     return titleMatch && artistMatch;
-                }) || tracks[0];
+                });
+
+                // Fallback to raw search if strict search failed
+                if (!track) {
+                    const { data: rawData } = await axios.get('https://api.spotify.com/v1/search', {
+                        headers: { Authorization: `Bearer ${token}` },
+                        params: {
+                            q: `${artistName} ${trackName}`,
+                            type: 'track',
+                            limit: 1,
+                        },
+                    });
+                    const rawTrack = rawData.tracks?.items?.[0];
+                    if (rawTrack && this.validateArtist(artistName, rawTrack.artists[0].name)) {
+                        return {
+                            coverUrl: rawTrack.album?.images?.[0]?.url || null,
+                            trackUrl: rawTrack.external_urls?.spotify || null,
+                            previewUrl: rawTrack.preview_url || null,
+                            durationMs: rawTrack.duration_ms || 0,
+                            resolvedArtist: rawTrack.artists[0].name,
+                            resolvedTrack: rawTrack.name,
+                            albumName: rawTrack.album?.name || null,
+                        };
+                    }
+                }
+
+                if (!track) return { coverUrl: null, trackUrl: null, previewUrl: null, durationMs: 0, resolvedArtist: null, resolvedTrack: null, albumName: null };
 
                 return {
                     coverUrl: track?.album?.images?.[0]?.url || null,

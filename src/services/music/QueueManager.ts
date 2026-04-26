@@ -25,6 +25,8 @@ export interface GuildQueue {
         index: number;
         title: string;
     };
+    hasLyrics?: boolean;
+    autoplay?: boolean;
 }
 
 const queues = new Map<string, GuildQueue>();
@@ -136,6 +138,31 @@ export class QueueManager {
         queue.mixContext = { songs, index: 0, title };
     }
 
+    static jump(guildId: string, position: number): YoutubeResult | undefined {
+        const queue = queues.get(guildId);
+        if (!queue || position < 1 || position > queue.tracks.length) return undefined;
+
+        // Remove all tracks before the target position
+        queue.tracks.splice(0, position - 1);
+        return queue.tracks[0];
+    }
+
+    static move(guildId: string, from: number, to: number): YoutubeResult | undefined {
+        const queue = queues.get(guildId);
+        if (!queue || from < 1 || from > queue.tracks.length || to < 1 || to > queue.tracks.length) return undefined;
+
+        const track = queue.tracks.splice(from - 1, 1)[0];
+        queue.tracks.splice(to - 1, 0, track);
+        return track;
+    }
+
+    static removeTrack(guildId: string, position: number): YoutubeResult | undefined {
+        const queue = queues.get(guildId);
+        if (!queue || position < 1 || position > queue.tracks.length) return undefined;
+
+        return queue.tracks.splice(position - 1, 1)[0];
+    }
+
     static clearQueue(guildId: string): void {
         const queue = queues.get(guildId);
         if (!queue) return;
@@ -145,5 +172,15 @@ export class QueueManager {
         queue.isPlaying = false;
         queue.isPaused = false;
         queue.mixContext = undefined;
+    }
+
+    static shuffleQueue(guildId: string): void {
+        const queue = queues.get(guildId);
+        if (!queue || queue.tracks.length < 2) return;
+
+        for (let i = queue.tracks.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [queue.tracks[i], queue.tracks[j]] = [queue.tracks[j], queue.tracks[i]];
+        }
     }
 }

@@ -11,8 +11,9 @@ import dns from 'dns';
 
 // Force use of reliable DNS servers to bypass local ENOTFOUND issues
 dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+import { MongoService } from './database/mongo';
 
-const client = new Client({
+export const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
@@ -47,7 +48,10 @@ shoukaku.on('disconnect', (name, players) => {
 });
 
 async function bootstrap() {
-    // 1. Load Command Registry
+    // 1. Initialize Databases
+    await MongoService.connect();
+
+    // 2. Load Command Registry
     await loadCommands(client);
 
     // 2. Load Modular Events

@@ -1,4 +1,4 @@
-// src/handlers/eventHandler.ts
+// src/handlers/interactionHandler.ts
 import { 
     Client, Events, Interaction, ButtonInteraction, ButtonStyle, 
     EmbedBuilder, Message, StringSelectMenuInteraction, ModalSubmitInteraction,
@@ -9,9 +9,12 @@ import { config } from '../../config';
 import ChartCommand, { ChartOptions, DEFAULT_OPTIONS } from '../commands/stats/chart';
 import { prisma } from '../database/client';
 import { LastFM } from '../services/api/LastFM';
+import { MusicPlayer } from '../services/music/MusicPlayer';
+import { QueueManager } from '../services/music/QueueManager';
 import { indexQueue } from '../services/bot/QueueWorker';
 import { MusicBotService } from '../services/bot/MusicBotService';
 import { ComponentsV2 } from '../utils/ComponentsV2';
+import { MusicInteractionHandler } from './music/MusicInteractionHandler';
 import { LoggerService } from '../services/bot/LoggerService';
 import { randomBytes } from 'crypto';
 
@@ -226,6 +229,21 @@ export async function handleMessage(message: Message, client: Client) {
 }
 
 export async function handleInteraction(interaction: Interaction, client: Client) {
+    if (interaction.isAutocomplete()) {
+        const command = commands.get(interaction.commandName);
+        if (command && command.autocomplete) {
+            await command.autocomplete(interaction);
+        }
+        return;
+    }
+
+    if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('mp-')) {
+            await MusicInteractionHandler.handleModal(interaction);
+            return;
+        }
+    }
+
     if (interaction.isChatInputCommand()) {
         const command = commands.get(interaction.commandName);
         if (!command) return;
@@ -819,30 +837,12 @@ export async function handleInteraction(interaction: Interaction, client: Client
         return;
     }
 
-    if (interaction.isButton() && interaction.customId.startsWith('mp-')) {
-        const [action, gId] = interaction.customId.substring(3).split(':');
-        const { MusicPlayer } = await import('../services/bot/MusicPlayer');
-        const { QueueManager } = await import('../services/bot/QueueManager');
-        
-        if (action === 'pause' || action === 'resume') {
-            const queue = QueueManager.getQueue(gId);
-            if (action === 'resume') MusicPlayer.resume(gId); else MusicPlayer.pause(gId);
-            await interaction.deferUpdate();
-        } else if (action === 'skip') {
-            MusicPlayer.skip(gId);
-            await interaction.deferUpdate();
-        } else if (action === 'stop') {
-            MusicPlayer.stop(gId);
-            await interaction.deferUpdate();
-        } else if (action === 'repeat') {
-            const queue = QueueManager.getQueue(gId);
-            if (queue) {
-                const modes: any[] = ['off', 'one', 'all'];
-                const next = modes[(modes.indexOf(queue.repeatMode) + 1) % modes.length];
-                queue.repeatMode = next;
-                MusicPlayer.updateNowPlayingMessage(gId);
-            }
-            await interaction.deferUpdate();
+    // ==================== MUSIC CONTROLS (V2) ====================
+    if ('customId' in interaction && (interaction as any).customId.startsWith('mp-')) {
+        if (interaction.isButton()) {
+            await MusicInteractionHandler.handleButton(interaction as ButtonInteraction, client);
+        } else if (interaction.isStringSelectMenu()) {
+            await MusicInteractionHandler.handleSelectMenu(interaction as StringSelectMenuInteraction);
         }
         return;
     }

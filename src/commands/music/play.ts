@@ -1,6 +1,6 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { Youtube } from '../../services/api/Youtube';
-import { MusicPlayer } from '../../services/bot/MusicPlayer';
+import { MusicPlayer } from '../../services/music/MusicPlayer';
 import { LastFM } from '../../services/api/LastFM';
 import { Spotify } from '../../services/api/Spotify';
 import { Deezer } from '../../services/api/Deezer';
@@ -21,6 +21,7 @@ export default class PlayCommand extends BaseCommand {
             option.setName('query')
                 .setDescription('The song to search for (or YouTube/Spotify URL)')
                 .setRequired(false)
+                .setAutocomplete(true)
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args: string[] = []): Promise<void> {
@@ -204,5 +205,24 @@ export default class PlayCommand extends BaseCommand {
             track: result.trackTitle!,
             artworkUrl: result.artworkUrl || null
         };
+    }
+
+    async autocomplete(interaction: any) {
+        const focusedValue = interaction.options.getFocused();
+        if (!focusedValue) return interaction.respond([]);
+
+        try {
+            const YouTube = (await import('youtube-sr')).default as any;
+            const results = await YouTube.search(focusedValue, { limit: 10, type: 'video' });
+            
+            await interaction.respond(
+                results.map(video => ({
+                    name: `${video.title} (${video.channel?.name})`.substring(0, 100),
+                    value: video.url
+                }))
+            );
+        } catch (err) {
+            await interaction.respond([]);
+        }
     }
 }

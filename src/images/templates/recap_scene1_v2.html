@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1080px;
+            height: 1920px;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ---------------- VARIANTS ---------------- */
+        
+        /* Style 1: Black / Pink 3D shapes */
+        body.style-1 { background-color: #000000; }
+        body.style-1 .shape { 
+            background: linear-gradient(45deg, #ff0055, #ff6699);
+            box-shadow: 0 0 50px rgba(255,0,85,0.5);
+            border-radius: 20px;
+        }
+        
+        /* Style 2: Purple / Green 8-bit lines */
+        body.style-2 { background-color: #3b0086; }
+        body.style-2 .shape {
+            background: transparent;
+            border: 20px dashed #33ff33;
+            border-radius: 0;
+            filter: drop-shadow(10px 10px 0px #000000);
+        }
+
+        /* Style 3: Navy / Orange waves */
+        body.style-3 { background-color: #001f3f; }
+        body.style-3 .shape {
+            background: linear-gradient(135deg, #ff851b, #ffdc00);
+            border-radius: 50%;
+            filter: blur(10px);
+        }
+
+        /* ---------------- SHAPES ---------------- */
+        
+        .shape { position: absolute; z-index: 1; }
+        .s1 { width: 600px; height: 300px; top: -100px; left: -200px; transform: rotate(30deg); }
+        .s2 { width: 800px; height: 400px; bottom: 600px; right: -300px; transform: rotate(-45deg); }
+        .s3 { width: 400px; height: 400px; top: 800px; left: -150px; transform: rotate(15deg); }
+
+        /* ---------------- CONTENT ---------------- */
+        
+        .content {
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 150px 100px;
+            box-sizing: border-box;
+        }
+
+        .image-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 120px;
+        }
+
+        .artist-img {
+            width: 650px;
+            height: 650px;
+            object-fit: cover;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+        }
+
+        .lists-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 100px;
+            width: 100%;
+        }
+
+        .list-col { width: 45%; }
+
+        .list-title {
+            font-size: 38px;
+            font-weight: 400;
+            margin-bottom: 30px;
+            color: #dddddd;
+        }
+
+        .list-item {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .list-rank { width: 40px; }
+        
+        .list-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .stat-col { width: 45%; }
+
+        .stat-title {
+            font-size: 38px;
+            font-weight: 400;
+            margin-bottom: 20px;
+            color: #dddddd;
+        }
+
+        .stat-value {
+            font-size: 90px;
+            font-weight: 900;
+            letter-spacing: -3px;
+            line-height: 1.1;
+        }
+
+    </style>
+</head>
+<body class="style-{{variant}}">
+    <!-- Abstract Shapes -->
+    <div class="shape s1"></div>
+    <div class="shape s2"></div>
+    <div class="shape s3"></div>
+
+    <div class="content">
+        <div class="image-wrapper">
+            <img src="{{artistImage}}" class="artist-img" />
+        </div>
+
+        <div class="lists-container">
+            <div class="list-col">
+                <div class="list-title">Top Artists</div>
+                {{#each topArtists}}
+                <div class="list-item">
+                    <div class="list-rank">{{this.rank}}</div>
+                    <div class="list-name">{{this.name}}</div>
+                </div>
+                {{/each}}
+            </div>
+            <div class="list-col">
+                <div class="list-title">Top Songs</div>
+                {{#each topTracks}}
+                <div class="list-item">
+                    <div class="list-rank">{{this.rank}}</div>
+                    <div class="list-name">{{this.name}}</div>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-col">
+                <div class="stat-title">Minutes Listened</div>
+                <div class="stat-value">{{minutes}}</div>
+            </div>
+            <div class="stat-col">
+                <div class="stat-title">Top Genre</div>
+                <div class="stat-value" style="font-size: 70px;">{{topGenre}}</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

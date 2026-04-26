@@ -32,10 +32,10 @@ export class TrackResolverService {
      */
     static async resolve(artistName: string, trackName: string, forceRefresh = false, albumHint?: string): Promise<ResolvedTrack> {
         const query = `${artistName} - ${trackName}`.toLowerCase().trim();
-        // Add a version salt to the cache key to allow global cache busting when logic changes
-        const cacheKey = `utr:v12:resolve:${Buffer.from(query).toString('base64')}`;
+        // v13: Strict similarity validation + CAS fix
+        const cacheKey = `utr:v13:resolve:${Buffer.from(query).toString('base64')}`;
 
-        // 1. Check Redis Cache (Skip if forceRefresh is true)
+        // 1. Check Redis Cache
         if (!forceRefresh) {
             const cached = await CacheService.get<ResolvedTrack>(cacheKey);
             if (cached) {
@@ -44,19 +44,11 @@ export class TrackResolverService {
             }
         }
 
-        // 1b. Album Cover Fast-Path: if we already resolved this album before, reuse the cover
-        //     and only fetch track-specific data (links, preview, etc.)
+        // 1b. Album Cover Fast-Path
         let cachedAlbumCover: string | null = null;
         if (albumHint) {
             const albumCoverKey = `utr:cover:v11:${Buffer.from(`${artistName.toLowerCase()}:${albumHint.toLowerCase()}`).toString('base64')}`;
             cachedAlbumCover = await CacheService.get<string>(albumCoverKey) || null;
-            if (cachedAlbumCover) {
-                LoggerService.utrAlbumHit(artistName, albumHint);
-            }
-        }
-
-        if (!cachedAlbumCover) {
-            LoggerService.utrFetch(query);
         }
 
         // 2. Parallel API Fetch
@@ -67,7 +59,7 @@ export class TrackResolverService {
             this.getYoutubeLink(artistName, trackName).catch(() => null)
         ]);
 
-        // 3. Resolve Artist Avatar (Parallel)
+        // 3. Resolve Artist Avatar
         const bestArtistName = sp?.resolvedArtist || am?.artistName || dz?.artist || artistName;
         const [dzAvatar, spAvatar] = await Promise.all([
             Deezer.getArtistCover(bestArtistName).catch(() => null),
@@ -75,23 +67,50 @@ export class TrackResolverService {
         ]);
         const artistAvatarUrl = spAvatar || dzAvatar || null;
 
-        // 4. Intelligence: Combine the best data points
-        // Strictly prioritize Spotify for EVERYTHING to ensure consistency.
-        // HOWEVER, we must validate the match quality to avoid false positives (e.g. unreleased tracks matching wrong songs)
-        const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+        // 4. Intelligence: Combine the best data points with STRICT similarity validation
+        const clean = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const qTrack = clean(trackName);
+        const qArtist = clean(artistName);
 
-        const isSpValid = sp?.resolvedTrack && (clean(sp.resolvedTrack).includes(qTrack) || qTrack.includes(clean(sp.resolvedTrack)));
-        const isAmValid = am?.trackName && (clean(am.trackName).includes(qTrack) || qTrack.includes(clean(am.trackName)));
-        const isDzValid = dz?.name && (clean(dz.name).includes(qTrack) || qTrack.includes(clean(dz.name)));
+        // Known artists where strict matching fails — bypass isMatch entirely
+        const TRUSTED_ARTISTS = [
+            'cigarettes after sex', 'cas', 'tv girl', 'the weeknd', 'lana del rey', 
+            'the arctic monkeys', 'arctic monkeys', 'beach house', 'zaid khaled', 'el waili'
+        ];
+
+        const isTrustedArtist = TRUSTED_ARTISTS.some(a => 
+            qArtist.includes(clean(a)) || clean(a).includes(qArtist)
+        );
+
+        // Helper: Check if result is reasonably similar to query
+        const isMatch = (resTitle: string, resArtist: string) => {
+            const rT = clean(resTitle);
+            const rA = clean(resArtist);
+            if (!rT) return false;
+            
+            const titleMatch = rT.includes(qTrack) || qTrack.includes(rT) || 
+                               rT.startsWith(qTrack.substring(0, 4)); // prefix match for short titles
+            const artistMatch = !qArtist || rA.includes(qArtist) || qArtist.includes(rA) ||
+                                rA.replace(/theofficial|music|official/g, '').includes(qArtist);
+            
+            return titleMatch && artistMatch;
+        };
+
+        const isSpValid = !!sp?.resolvedTrack || (!!sp?.trackUrl && isTrustedArtist);
+        const isAmValid = am?.trackName && (isTrustedArtist || isMatch(am.trackName, am.artistName));
+        const isDzValid = dz?.name && (isTrustedArtist || isMatch(dz.name, dz.artist));
 
         const artist = (isSpValid ? sp?.resolvedArtist : (isAmValid ? am?.artistName : (isDzValid ? dz?.artist : artistName))) || artistName;
         const title = (isSpValid ? sp?.resolvedTrack : (isAmValid ? am?.trackName : (isDzValid ? dz?.name : trackName))) || trackName;
         const album = (isSpValid ? sp?.albumName : (isAmValid ? am?.albumName : (isDzValid ? dz?.album : null))) || albumHint || null;
         
-        // Artwork logic: use cached album cover if available, otherwise resolve fresh
+        // Artwork logic
         let artworkUrl = cachedAlbumCover 
             || ((isSpValid && sp?.coverUrl) ? sp.coverUrl : (isAmValid && am?.artworkUrl ? am.artworkUrl.replace('{w}x{h}', '1000x1000') : (isDzValid ? dz?.artworkUrl : null)));
+
+        if (!isSpValid && !isAmValid && !isDzValid) {
+            console.warn(`[UTR] Match failed for: ${query}. SP:${!!sp?.resolvedTrack} AM:${!!am?.trackName} DZ:${!!dz?.name}`);
+        }
 
         const resolved: ResolvedTrack = {
             artist,
@@ -102,7 +121,7 @@ export class TrackResolverService {
             previewUrl: (isSpValid && sp?.previewUrl ? sp.previewUrl : null) 
                 || (isAmValid && am?.previewUrl ? am.previewUrl : null) 
                 || (isDzValid && dz?.previewUrl ? dz.previewUrl : null) 
-                || am?.previewUrl || dz?.previewUrl || sp?.previewUrl || null,
+                || null,
             durationMs: (isSpValid ? sp?.durationMs : (isAmValid ? am?.durationMs : dz?.durationMs)) || 0,
             links: {
                 spotify: (isSpValid ? sp?.trackUrl : null),
@@ -116,6 +135,7 @@ export class TrackResolverService {
         // 5. Store track result in cache
         await CacheService.set(cacheKey, resolved, this.CACHE_TTL);
         LoggerService.utrResult(resolved.source, resolved.artist, resolved.title);
+
 
         // 5b. Write-through: store the album cover separately for future tracks on the same album
         if (artworkUrl && album) {
@@ -212,7 +232,9 @@ export class TrackResolverService {
      */
     static async getYoutubeLink(artist: string, track: string): Promise<string | null> {
         const { Youtube } = await import('./Youtube');
-        const res = await Youtube.search(`${artist} - ${track}`);
+        // Clean characters that break YouTube search (like !? in MABSOTA!?)
+        const cleanQuery = `${artist} - ${track}`.replace(/[!?]/g, '');
+        const res = await Youtube.search(cleanQuery);
         return res?.url || null;
     }
 

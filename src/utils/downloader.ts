@@ -222,3 +222,100 @@ export async function createAuraVideo(imagePath: string, audioUrl: string, track
   return videoPath;
 }
 
+export async function createRecapVideo(imagePaths: string[], audioUrl: string | null, videoId: string): Promise<string> {
+  const finalVideoPath = path.join(tempDir, `${videoId}_final.mp4`);
+  const concatVideoPath = path.join(tempDir, `${videoId}_concat.mp4`);
+  const segmentPaths: string[] = [];
+  const cleanupFiles: string[] = [];
+
+  try {
+    let audioPath: string | null = null;
+    if (audioUrl) {
+      audioPath = await downloadMP3(audioUrl, `${videoId}_audio`);
+      cleanupFiles.push(audioPath);
+    }
+
+    // Create 3 silent 10-second video segments
+    for (let i = 0; i < 3; i++) {
+      const imgPath = imagePaths[i];
+      const segmentPath = path.join(tempDir, `${videoId}_seg${i}.mp4`);
+      const pngPath = path.join(tempDir, `${videoId}_seg${i}.png`);
+      
+      cleanupFiles.push(pngPath);
+      cleanupFiles.push(segmentPath);
+
+      // Convert WebP to PNG
+      await new Promise((resolve, reject) => {
+        ffmpeg(imgPath).output(pngPath).on("end", resolve).on("error", reject).run();
+      });
+
+      // Create 10-second silent segment
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+           .input(pngPath)
+           .inputOptions(["-loop 1"])
+           .outputOptions([
+             "-c:v libx264", "-preset ultrafast", "-tune stillimage", "-crf 28",
+             "-pix_fmt yuv420p", "-t 10", "-vf scale=1080:1920", "-threads 1"
+           ])
+           .output(segmentPath)
+           .on("end", resolve)
+           .on("error", reject)
+           .run();
+      });
+
+      segmentPaths.push(segmentPath);
+    }
+
+    // Concatenate segments
+    const listPath = path.join(tempDir, `${videoId}_list.txt`);
+    cleanupFiles.push(listPath);
+    cleanupFiles.push(concatVideoPath);
+    
+    const listContent = segmentPaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
+    await fsp.writeFile(listPath, listContent);
+
+    await new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(listPath)
+        .inputOptions(["-f concat", "-safe 0"])
+        .outputOptions(["-c copy", "-movflags +faststart"])
+        .output(concatVideoPath)
+        .on("end", resolve)
+        .on("error", reject)
+        .run();
+    });
+
+    // Mix audio if available
+    if (audioPath) {
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(concatVideoPath)
+          .input(audioPath!)
+          .outputOptions([
+            "-c:v copy",
+            "-c:a aac",
+            "-b:a 128k",
+            "-shortest"
+          ])
+          .output(finalVideoPath)
+          .on("end", resolve)
+          .on("error", reject)
+          .run();
+      });
+    } else {
+      await fsp.copyFile(concatVideoPath, finalVideoPath);
+    }
+
+  } catch (err: any) {
+    console.error('[downloader] FFmpeg Recap Error:', err.message);
+    throw err;
+  } finally {
+    for (const file of cleanupFiles) {
+      await fsp.unlink(file).catch(() => {});
+    }
+  }
+
+  return finalVideoPath;
+}
+

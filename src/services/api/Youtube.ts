@@ -18,6 +18,7 @@ export interface YoutubeResult {
     artworkUrl?: string;     // For UI rendering
     statsText?: string;      // For UI rendering
     requesterName?: string;  // For UI rendering
+    requesterId?: string;    // For user history
 }
 
 export interface AudioStreamResult {

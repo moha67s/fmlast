@@ -4,6 +4,16 @@ import * as path from 'path';
 import handlebars from 'handlebars';
 import { LoggerService } from '../bot/LoggerService';
 
+// Register Handlebars Helpers
+handlebars.registerHelper('eq', (a, b) => a === b);
+handlebars.registerHelper('ne', (a, b) => a !== b);
+handlebars.registerHelper('lt', (a, b) => a < b);
+handlebars.registerHelper('gt', (a, b) => a > b);
+handlebars.registerHelper('lte', (a, b) => a <= b);
+handlebars.registerHelper('gte', (a, b) => a >= b);
+handlebars.registerHelper('plus', (a, b) => a + b);
+handlebars.registerHelper('minus', (a, b) => a - b);
+
 export class PuppeteerService {
     private static browser: Browser | null = null;
     private static pagePool: Page[] = [];

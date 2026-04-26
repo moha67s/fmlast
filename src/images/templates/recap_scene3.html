@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1080px;
+            height: 1920px;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* ---------------- VARIANTS ---------------- */
+        
+        /* Style 1: Off-White / Red & Black Blocks */
+        body.style-1 { background-color: #f2f2f2; color: #000000; }
+        body.style-1 .shape-circle { background: #ff3333; }
+        body.style-1 .shape-line { border-top: 6px solid #1e1e1e; }
+        body.style-1 .genre-name-box { background-color: #1e1e1e; color: #ffffff; }
+        body.style-1 .genre-item:nth-child(2n) .genre-name-box { background-color: transparent; color: #1e1e1e; border: 8px solid #1e1e1e; padding: 2px 22px; }
+        body.style-1 .logo { background: #1e1e1e; }
+        body.style-1 .footer { color: #1e1e1e; }
+
+        /* Style 2: Black / Neon Cyan & Pink */
+        body.style-2 { background-color: #0d0d0d; color: #ffffff; }
+        body.style-2 .shape-circle { background: #ff007f; box-shadow: 0 0 50px #ff007f; }
+        body.style-2 .shape-line { border-top: 6px solid #00f3ff; box-shadow: 0 -20px 50px #00f3ff; }
+        body.style-2 .genre-name-box { background-color: #00f3ff; color: #0d0d0d; box-shadow: 0 0 30px #00f3ff; }
+        body.style-2 .genre-item:nth-child(2n) .genre-name-box { background-color: transparent; color: #ff007f; border: 8px solid #ff007f; box-shadow: 0 0 30px #ff007f inset, 0 0 30px #ff007f; padding: 2px 22px; }
+        body.style-2 .logo { background: #ffffff; }
+        body.style-2 .footer { color: #ffffff; }
+
+        /* Style 3: Navy Blue / Bright Yellow & Orange */
+        body.style-3 { background-color: #0a1128; color: #ffffff; }
+        body.style-3 .shape-circle { background: #ff9900; }
+        body.style-3 .shape-line { border-top: 15px dotted #ffcc00; }
+        body.style-3 .genre-name-box { background-color: #ffcc00; color: #0a1128; border-radius: 20px; }
+        body.style-3 .genre-item:nth-child(2n) .genre-name-box { background-color: #ff9900; color: #0a1128; border-radius: 20px; }
+        body.style-3 .logo { background: #ffcc00; }
+        body.style-3 .footer { color: #ffcc00; }
+
+        /* ---------------- BACKGROUND SHAPES ---------------- */
+        
+        .shape-circle {
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        .dot1 { width: 150px; height: 150px; bottom: 300px; right: 200px; }
+        .dot2 { width: 80px; height: 80px; bottom: 500px; right: 350px; }
+        .dot3 { width: 100px; height: 100px; bottom: 200px; right: 400px; }
+        .dot4 { width: 250px; height: 250px; top: -50px; right: -50px; }
+        
+        .shape-line {
+            position: absolute;
+            bottom: 200px;
+            left: -100px;
+            width: 1000px;
+            height: 500px;
+            border-radius: 50% 50% 0 0;
+            transform: rotate(-15deg);
+        }
+
+        /* ---------------- CONTENT ---------------- */
+
+        .content {
+            z-index: 10;
+            width: 80%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-top: -150px;
+        }
+
+        .header {
+            font-size: 80px;
+            font-weight: 900;
+            margin-bottom: 100px;
+            align-self: center;
+            letter-spacing: -3px;
+        }
+
+        .genre-list {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            width: 100%;
+        }
+
+        .genre-item {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .genre-rank {
+            font-size: 70px;
+            font-weight: 900;
+            width: 80px;
+            text-align: right;
+        }
+
+        .genre-name-box {
+            padding: 15px 40px;
+            font-size: 110px;
+            font-weight: 900;
+            letter-spacing: -4px;
+            line-height: 1;
+            display: inline-block;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-width: 800px;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 50px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 30px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            z-index: 20;
+        }
+
+        .logo {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+        }
+        
+    </style>
+</head>
+<body class="style-{{variant}}">
+    <!-- Background shapes -->
+    <div class="shape-circle dot1"></div>
+    <div class="shape-circle dot2"></div>
+    <div class="shape-circle dot3"></div>
+    <div class="shape-circle dot4"></div>
+    <div class="shape-line"></div>
+    
+    <div class="content">
+        <div class="header">Your Top Genres</div>
+        
+        <div class="genre-list">
+            {{#each genres}}
+            <div class="genre-item">
+                <div class="genre-rank">{{this.rank}}</div>
+                <div class="genre-name-box">{{this.name}}</div>
+            </div>
+            {{/each}}
+        </div>
+    </div>
+</body>
+</html>

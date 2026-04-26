@@ -8,6 +8,9 @@ export abstract class BaseCommand {
     /** Optional slash command definition (auto-registered later) */
     slashData?: any;
 
+    /** Optional autocomplete handler */
+    autocomplete?(interaction: any): Promise<void>;
+
     /** Every command must return Promise<void> */
     abstract execute(interactionOrMessage: any, isSlash?: boolean, args?: string[]): Promise<void>;
 }
