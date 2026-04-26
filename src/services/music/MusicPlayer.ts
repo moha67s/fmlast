@@ -244,16 +244,15 @@ export class MusicPlayer {
                     console.log(`[MusicPlayer] 🤖 Autoplay triggered for guild ${guildId}`);
                     queue.textChannel.send('🎵 **Autoplay**: Searching for related tracks...').then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
 
-                    const YouTube = (await import('youtube-sr')).default as any;
-                    // Search for the artist + title + "official audio" for better quality
-                    const query = `${queue.currentTrack.artistName || ''} ${queue.currentTrack.trackTitle || queue.currentTrack.title} official music`.trim();
-                    const results = await YouTube.search(query, { limit: 10, type: 'video' });
+                    const { Youtube } = await import('../api/Youtube');
+                    const query = `${queue.currentTrack.artistName || ''} ${queue.currentTrack.trackTitle || queue.currentTrack.title} mix`.trim();
+                    const results = await Youtube.searchByQuery(query);
                     
                     if (results && results.length > 0) {
                         // Filter out tracks with the same title or extremely long/short durations
                         const currentTitle = (queue.currentTrack.trackTitle || queue.currentTrack.title).toLowerCase();
                         
-                        const filtered = results.filter((v: any) => {
+                        const filtered = results.filter((v: YoutubeResult) => {
                             const vTitle = v.title.toLowerCase();
                             // Avoid exact same video titles from other channels
                             if (vTitle.includes(currentTitle) && vTitle.length < currentTitle.length + 5) return false;
@@ -261,7 +260,8 @@ export class MusicPlayer {
                             const junk = ['مدفع', 'رمضان', 'علاء حسين', 'محمد عماد', 'clip', 'vlog', 'challenge', 'funny', 'comedy'];
                             if (junk.some(j => vTitle.includes(j))) return false;
                             // Avoid long mixes (> 15 mins) or short clips (< 1 min)
-                            if (v.duration > 900000 || v.duration < 60000) return false;
+                            const durationMs = (v.durationSeconds || 0) * 1000;
+                            if (durationMs > 900000 || durationMs < 60000) return false;
                             return true;
                         });
 
@@ -273,13 +273,7 @@ export class MusicPlayer {
 
                         for (const v of related) {
                             QueueManager.addTrack(guildId, {
-                                title: v.title!,
-                                url: v.url,
-                                id: v.id!,
-                                thumbnail: v.thumbnail?.url!,
-                                duration: v.durationFormatted,
-                                durationSeconds: Math.floor(v.duration / 1000),
-                                channelTitle: v.channel?.name!,
+                                ...v,
                                 requesterName: 'Autoplay'
                             });
                         }

@@ -16,12 +16,11 @@ export default class PlaylistCommand extends BaseCommand {
         .addSubcommand(sub => sub.setName('create').setDescription('Create a new playlist'))
         .addSubcommand(sub => sub.setName('list').setDescription('List your playlists'));
 
-    async execute(interaction: any, args: string[]) {
+    async execute(interaction: any, isSlash = false, args: string[] = []) {
         if (!MongoService.isConnected) {
             return interaction.reply({ content: '❌ MongoDB is not connected. Please ask the owner to provide `MONGODB_URL` in `.env`.', ephemeral: true });
         }
 
-        const isSlash = !!interaction.options;
         const subcommand = isSlash ? interaction.options.getSubcommand(false) : args[0];
 
         if (subcommand === 'create') {

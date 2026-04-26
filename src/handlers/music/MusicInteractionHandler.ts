@@ -61,7 +61,7 @@ export class MusicInteractionHandler {
                     const pos = queue?.player?.position ?? 0;
                     const firstFrame = LyricsService.buildLiveLyricsUI(lyrics.lines, pos, guildId);
                     
-                    const msg = await interaction.reply({ ...firstFrame, fetchReply: true }) as Message;
+                    const msg = await interaction.reply({ ...firstFrame, fetchReply: true }) as unknown as Message;
                     await LyricsService.startLiveLyrics(guildId, msg, lyrics.lines);
                 } else {
                     const builder = new ComponentsV2()
@@ -335,16 +335,45 @@ export class MusicInteractionHandler {
             // Import logic from filters.ts or centralize filter mapping
             const FILTER_MAP: any = {
                 'clear': {},
-                'bassboost': { equalizer: Array(6).fill(0).map((_, i) => ({ band: i, gain: 0.2 })) },
-                'nightcore': { timescale: { speed: 1.2, pitch: 1.2, rate: 1.0 } },
-                'vaporwave': { timescale: { speed: 0.85, pitch: 0.8 } },
+                'bassboost': { 
+                    equalizer: [
+                        { band: 0, gain: 0.6 },
+                        { band: 1, gain: 0.6 },
+                        { band: 2, gain: 0.5 },
+                        { band: 3, gain: 0.4 },
+                        { band: 4, gain: 0.3 },
+                        { band: 5, gain: 0.2 },
+                        { band: 6, gain: 0.1 },
+                    ] 
+                },
+                'nightcore': { timescale: { speed: 1.25, pitch: 1.2, rate: 1.0 } },
+                'vaporwave': { timescale: { speed: 0.85, pitch: 0.8, rate: 1.0 } },
                 'daycore': { timescale: { speed: 0.85, pitch: 0.8, rate: 1.0 }, equalizer: [{ band: 0, gain: 0.3 }, { band: 1, gain: 0.2 }] },
-                'tremolo': { tremolo: { frequency: 4.0, depth: 0.5 } },
-                'vibrato': { vibrato: { frequency: 4.0, depth: 0.5 } },
-                'distortion': { distortion: { sinOffset: 0.0, sinScale: 1.0, cosOffset: 0.0, cosScale: 1.0, tanOffset: 0.0, tanScale: 1.0, offset: 0.0, scale: 1.0 } },
-                '8d': { channelMix: { leftToLeft: 0.5, leftToRight: 0.5, rightToLeft: 0.5, rightToRight: 0.5 } }, // Basic 8D approximation
-                'pop': { equalizer: [{ band: 0, gain: 0.65 }, { band: 1, gain: 0.45 }, { band: 2, gain: -0.45 }, { band: 3, gain: -0.65 }, { band: 4, gain: 0.35 }] },
-                'treble': { equalizer: [{ band: 0, gain: -0.2 }, { band: 1, gain: -0.1 }, { band: 2, gain: 0.1 }, { band: 3, gain: 0.3 }, { band: 4, gain: 0.5 }] },
+                'tremolo': { tremolo: { frequency: 2.0, depth: 0.5 } },
+                'vibrato': { vibrato: { frequency: 2.0, depth: 0.5 } },
+                'distortion': { 
+                    distortion: { 
+                        sinOffset: 0.0, sinScale: 1.0, cosOffset: 0.0, cosScale: 1.0, tanOffset: 0.0, tanScale: 1.0, offset: 0.0, scale: 1.0 
+                    },
+                    channelMix: { leftToLeft: 0.5, leftToRight: 0.5, rightToLeft: 0.5, rightToRight: 0.5 }
+                },
+                '8d': { rotation: { rotationHz: 0.2 } }, 
+                'pop': { 
+                    equalizer: [
+                        { band: 0, gain: 0.15 }, { band: 1, gain: 0.1 }, { band: 2, gain: 0.05 }, { band: 3, gain: 0 }, 
+                        { band: 4, gain: -0.05 }, { band: 5, gain: -0.1 }, { band: 6, gain: -0.05 }, { band: 7, gain: 0.05 }, 
+                        { band: 8, gain: 0.1 }, { band: 9, gain: 0.2 }, { band: 10, gain: 0.25 }, { band: 11, gain: 0.3 }, 
+                        { band: 12, gain: 0.25 }, { band: 13, gain: 0.2 }, { band: 14, gain: 0.15 }
+                    ] 
+                },
+                'treble': { 
+                    equalizer: [
+                        { band: 0, gain: -0.2 }, { band: 1, gain: -0.15 }, { band: 2, gain: -0.1 }, { band: 3, gain: -0.05 }, 
+                        { band: 4, gain: 0 }, { band: 5, gain: 0.05 }, { band: 6, gain: 0.1 }, { band: 7, gain: 0.15 }, 
+                        { band: 8, gain: 0.2 }, { band: 9, gain: 0.25 }, { band: 10, gain: 0.3 }, { band: 11, gain: 0.35 }, 
+                        { band: 12, gain: 0.4 }, { band: 13, gain: 0.45 }, { band: 14, gain: 0.5 }
+                    ] 
+                },
             };
 
             await interaction.deferUpdate();
