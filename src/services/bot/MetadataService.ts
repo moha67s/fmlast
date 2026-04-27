@@ -88,7 +88,7 @@ export class MetadataService {
         }
 
         track.statsText = statsText;
-        track.requesterName = member.user.displayName;
+        track.requesterName = member?.user?.displayName || track.requesterName || 'Unknown';
         if (finalDuration) track.duration = finalDuration;
     }
 }

@@ -30,16 +30,22 @@ export default class FiltersCommand extends BaseCommand {
 
     static FILTER_MAP: Record<string, any> = {
         'reset': {},
-        'bassboost': { equalizers: Array(6).fill(0).map((_, i) => ({ band: i, gain: 0.2 })) },
+        'bassboost': { equalizer: [
+            { band: 0, gain: 0.20 },
+            { band: 1, gain: 0.15 },
+            { band: 2, gain: 0.10 },
+            { band: 3, gain: 0.05 },
+            { band: 4, gain: 0.00 }
+        ] },
         'nightcore': { timescale: { speed: 1.2, pitch: 1.2, rate: 1.0 } },
         'vaporwave': { timescale: { speed: 0.85, pitch: 0.8 } },
-        'daycore': { timescale: { speed: 0.85, pitch: 0.8, rate: 1.0 }, equalizers: [{ band: 0, gain: 0.3 }, { band: 1, gain: 0.2 }] },
+        'daycore': { timescale: { speed: 0.85, pitch: 0.8, rate: 1.0 }, equalizer: [{ band: 0, gain: 0.3 }, { band: 1, gain: 0.2 }] },
         'tremolo': { tremolo: { frequency: 4.0, depth: 0.5 } },
         'vibrato': { vibrato: { frequency: 4.0, depth: 0.5 } },
         'distortion': { distortion: { sinOffset: 0.0, sinScale: 1.0, cosOffset: 0.0, cosScale: 1.0, tanOffset: 0.0, tanScale: 1.0, offset: 0.0, scale: 1.0 } },
-        '8d': { channelMix: { leftToLeft: 0.5, leftToRight: 0.5, rightToLeft: 0.5, rightToRight: 0.5 } },
-        'pop': { equalizers: [{ band: 0, gain: 0.65 }, { band: 1, gain: 0.45 }, { band: 2, gain: -0.45 }, { band: 3, gain: -0.65 }, { band: 4, gain: 0.35 }] },
-        'treble': { equalizers: [{ band: 0, gain: -0.2 }, { band: 1, gain: -0.1 }, { band: 2, gain: 0.1 }, { band: 3, gain: 0.3 }, { band: 4, gain: 0.5 }] },
+        '8d': { rotation: { rotationHz: 0.2 } },
+        'pop': { equalizer: [{ band: 0, gain: 0.65 }, { band: 1, gain: 0.45 }, { band: 2, gain: -0.45 }, { band: 3, gain: -0.65 }, { band: 4, gain: 0.35 }] },
+        'treble': { equalizer: [{ band: 0, gain: -0.2 }, { band: 1, gain: -0.1 }, { band: 2, gain: 0.1 }, { band: 3, gain: 0.3 }, { band: 4, gain: 0.5 }] },
     };
 
     async execute(interactionOrMessage: any, isSlash = false, args: string[] = []): Promise<void> {
