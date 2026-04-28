@@ -206,7 +206,10 @@ export class TrackResolverService {
         const cacheKey = `utr:album:v12:${Buffer.from(query).toString('base64')}`;
 
         const cached = await CacheService.get<any>(cacheKey);
-        if (cached) return cached;
+        if (cached) {
+            LoggerService.utrAlbumHit(artistName, albumName);
+            return cached;
+        }
 
         const [sp, am, dz] = await Promise.all([
             Spotify.getAlbumMetadata(albumName, artistName).catch(() => null),

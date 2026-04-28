@@ -5,10 +5,11 @@ import { config } from '../config';
 import { initBotProfile } from './services/bot/BotProfile';
 import { PuppeteerService } from './services/external/PuppeteerService';
 import { LoggerService } from './services/bot/LoggerService';
-import { SyncScheduler } from './services/bot/SyncScheduler';
+import { CronManager } from './services/bot/CronManager';
 import { Shoukaku, Connectors } from 'shoukaku';
 import http from 'http';
 import dns from 'dns';
+import './services/bot/QueueWorker'; // Initialize background worker immediately
 
 // Force use of reliable DNS servers to bypass local ENOTFOUND issues
 dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
@@ -67,8 +68,8 @@ async function bootstrap() {
     // 5. Post-Login Initialization
     await initBotProfile();
 
-    // 6. Start Background Sync Scheduler (every 4 hours)
-    SyncScheduler.start(240);
+    // 6. Start BullMQ Cron Jobs (stale sync, duration backfill, health checks, drift detection)
+    await CronManager.start();
 
     // 6. Simple Health Check for Railway
     http.createServer((req, res) => {

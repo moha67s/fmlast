@@ -377,6 +377,17 @@ export async function handleInteraction(interaction: Interaction, client: Client
             const username = await LastFM.completeLogin(interaction.user.id);
             
             if (indexQueue) {
+                // Proactively drain and check existing jobs to prevent BullMQ deduplication hangs
+                await indexQueue.drain().catch(() => {});
+                const existing = await indexQueue.getJob(`full-${interaction.user.id}`);
+                if (existing) {
+                    const state = await existing.getState();
+                    if (state !== 'active') {
+                        await existing.remove().catch(() => {});
+                        console.log(`[Queue] Removed existing job for ${interaction.user.id} (State: ${state})`);
+                    }
+                }
+
                 await indexQueue.add('index-user', { discordId: interaction.user.id, type: 'FULL_SYNC' }, {
                     jobId: `full-${interaction.user.id}`,
                     removeOnComplete: true,
@@ -901,7 +912,7 @@ export async function handleInteraction(interaction: Interaction, client: Client
         try {
             const dbUser = await prisma.user.findUnique({ where: { discordId: state.userId } });
             if (!dbUser?.lastfmSessionKey) throw new Error('Not linked.');
-            const payload = await ChartCommand.createChartPayload(state.userId, dbUser.lastfmUsername!, dbUser.lastfmSessionKey, state.size, state.period, interaction.client, {
+            const payload = await ChartCommand.createChartPayload(dbUser.id, state.userId, dbUser.lastfmUsername!, dbUser.lastfmSessionKey, state.size, state.period, interaction.client, {
                 skipNoImage: state.skipNoImage, sfwOnly: state.sfwOnly, hideSingles: state.hideSingles, releaseFilter: state.releaseFilter
             });
             await interaction.followUp(payload);

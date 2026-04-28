@@ -98,17 +98,30 @@ export class FriendService {
     }
 
     /** Calculate Taste Affinity between two users */
-    static async getTasteAffinity(u1DiscordId: string, u2DiscordId: string) {
-        const u1 = await prisma.user.findUnique({ where: { discordId: u1DiscordId } });
-        const u2 = await prisma.user.findUnique({ where: { discordId: u2DiscordId } });
+    static async getTasteAffinity(u1Id: string, u2Id: string) {
+        const u1 = await prisma.user.findUnique({ where: { id: u1Id } });
+        const u2 = await prisma.user.findUnique({ where: { id: u2Id } });
 
         if (!u1 || !u2) throw new Error("One or both users are not registered.");
 
-        // Grab top 100 artists for both users
-        const u1Artists = await prisma.userArtist.findMany({ where: { userId: u1.id }, orderBy: { playcount: 'desc' }, take: 150 });
-        const u2Artists = await prisma.userArtist.findMany({ where: { userId: u2.id }, orderBy: { playcount: 'desc' }, take: 150 });
+        // Grab top 150 artists for both users, including the artist relation
+        const u1Artists = await prisma.userArtist.findMany({ 
+            where: { userId: u1.id }, 
+            orderBy: { playcount: 'desc' }, 
+            take: 150 
+        });
+        const u2Artists = await prisma.userArtist.findMany({ 
+            where: { userId: u2.id }, 
+            orderBy: { playcount: 'desc' }, 
+            take: 150 
+        });
 
-        const u1Map = new Map(u1Artists.map((a, index) => [a.artistName.toLowerCase(), { playcount: a.playcount, rank: index + 1, name: a.artistName }]));
+        // Use artistId for matching if available, otherwise fallback to name
+        const u1Map = new Map();
+        u1Artists.forEach((a, index) => {
+            const key = a.artistId || a.artistName.toLowerCase();
+            u1Map.set(key, { playcount: a.playcount, rank: index + 1, name: a.artistName });
+        });
         
         type SharedArtist = { name: string, rank1: number, rank2: number, score: number };
         const shared: SharedArtist[] = [];
@@ -116,25 +129,22 @@ export class FriendService {
         let scoreMatch = 0;
         
         u2Artists.forEach((a2, index) => {
-            const artistLower = a2.artistName.toLowerCase();
-            if (u1Map.has(artistLower)) {
-                const a1 = u1Map.get(artistLower)!;
+            const key = a2.artistId || a2.artistName.toLowerCase();
+            if (u1Map.has(key)) {
+                const a1 = u1Map.get(key)!;
                 const rank2 = index + 1;
                 
-                // Score based on position in top 150
-                // Rank 1 = ~150 points, Rank 150 = 1 point
                 const a1Score = Math.max(1, 151 - a1.rank);
                 const a2Score = Math.max(1, 151 - rank2);
                 
-                // Multiplier for closeness in rank
                 const rankDiff = Math.abs(a1.rank - rank2);
-                const closenessMult = Math.max(0.2, 1 - (rankDiff / 100)); // The closer the rank, the higher the multiplier
+                const closenessMult = Math.max(0.2, 1 - (rankDiff / 100));
 
                 const matchPoints = ((a1Score + a2Score) / 2) * closenessMult;
                 scoreMatch += matchPoints;
                 
                 shared.push({
-                    name: a1.name, // preserve correct caps from user1
+                    name: a1.name,
                     rank1: a1.rank,
                     rank2: rank2,
                     score: matchPoints
@@ -142,19 +152,15 @@ export class FriendService {
             }
         });
 
-        // Max possible score if identical top 150
         let maxPossible = 0;
         for (let i = 1; i <= 150; i++) {
             maxPossible += (151 - i);
         }
 
-        // Percentage affinity
         const rawPercent = (scoreMatch / maxPossible) * 100;
         
-        // Boost factor: If you share even a few artists in the absolute top, bump the score
-        // We'll normalize the score up linearly since true matching on all 150 is virtually impossible
-        let boostedPercent = rawPercent * 2.5; 
-        if (boostedPercent > 99) boostedPercent = 99; // Cap at 99 unless literal clone
+        let boostedPercent = rawPercent * 2.8; 
+        if (boostedPercent > 99) boostedPercent = 99;
         if (shared.length === 150 && rawPercent > 90) boostedPercent = 100;
         if (shared.length === 0) boostedPercent = 0;
         

@@ -2,6 +2,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import { prisma } from '../../database/client';
 import { CacheService } from '../bot/CacheService';
+import { LastfmHealthTracker } from '../bot/LastfmHealthTracker';
 
 const API_KEY = process.env.LASTFM_API_KEY!;
 const API_SECRET = process.env.LASTFM_API_SECRET!;
@@ -41,9 +42,11 @@ export class LastFM {
                 const { data } = await axios.post(ROOT, body.toString(), {
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                 });
-                if (data.error) throw data;
+                if (data.error) { LastfmHealthTracker.recordFailure(); throw data; }
+                LastfmHealthTracker.recordSuccess();
                 return data;
             } catch (err: any) {
+                LastfmHealthTracker.recordFailure();
                 const errorData = err.response?.data || err;
                 throw new Error(errorData.message || `Last.fm write error (${errorData.error || 'unknown'})`);
             }
@@ -63,8 +66,10 @@ export class LastFM {
                 if (data.error && data.error === 17 && sessionKey) {
                     // FALLTHROUGH to authenticated if it's explicitly a session error
                 } else if (data.error) {
+                    LastfmHealthTracker.recordFailure();
                     throw data; // Let handle catch other errors
                 } else {
+                    LastfmHealthTracker.recordSuccess();
                     return data;
                 }
             } catch (err: any) {
@@ -87,7 +92,8 @@ export class LastFM {
             const sig = this.sign(authParams);
             try {
                 const { data } = await axios.get(ROOT, { params: { ...authParams, api_sig: sig } });
-                if (data.error) throw data;
+                if (data.error) { LastfmHealthTracker.recordFailure(); throw data; }
+                LastfmHealthTracker.recordSuccess();
                 return data;
             } catch (err: any) {
                 const error = err.response?.data?.error || err.error;

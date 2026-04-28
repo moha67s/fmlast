@@ -2,6 +2,8 @@ import { BaseCommand } from '../../structures/BaseCommand';
 import { FriendService } from '../../services/bot/FriendService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SlashCommandBuilder } from 'discord.js';
+import { SettingService } from '../../services/bot/SettingService';
+import { prisma } from '../../database/client';
 
 export default class TasteCommand extends BaseCommand {
     name = 'taste';
@@ -10,38 +12,37 @@ export default class TasteCommand extends BaseCommand {
     slashData = new SlashCommandBuilder()
         .setName('taste')
         .setDescription('Compare your musical taste affinity with a friend')
-        .addUserOption(opt => opt.setName('user').setDescription('The user to compare with').setRequired(true));
+        .addStringOption(opt => opt.setName('query').setDescription('The user to compare with').setRequired(true));
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
-        let targetUser: any = null;
-
-        if (isSlash) {
-            targetUser = interactionOrMessage.options.getUser('user');
-            await interactionOrMessage.deferReply();
-        } else {
-            const mentionStr = args?.[0] || '';
-            const mentionMatch = mentionStr.match(/<@!?(\d+)>/);
-            const targetId = mentionMatch ? mentionMatch[1] : mentionStr;
-
-            if (targetId) {
-                targetUser = await interactionOrMessage.client.users.fetch(targetId).catch(() => null);
-            }
-        }
+        const query = isSlash 
+            ? interactionOrMessage.options.getString('query') || '' 
+            : (args ? args.join(' ') : '');
 
         const author = isSlash ? interactionOrMessage.user : interactionOrMessage.author;
-
-        if (!targetUser) {
-            const reply = '❌ Please mention a valid user to compare taste with (`/taste @user`).';
-            return isSlash ? interactionOrMessage.editReply(reply) : interactionOrMessage.reply(reply);
+        
+        const dbAuthor = await prisma.user.findUnique({ where: { discordId: author.id } });
+        if (!dbAuthor) {
+            const payload = new ComponentsV2().setAccent(0xff0000).addText('❌ Link your Last.fm first!').build();
+            if (isSlash) await interactionOrMessage.reply(payload);
+            else await interactionOrMessage.channel.send(payload);
+            return;
         }
 
-        if (targetUser.id === author.id) {
-            const reply = '❌ You have a 100% taste match with yourself!';
-            return isSlash ? interactionOrMessage.editReply(reply) : interactionOrMessage.reply(reply);
+        const userSettings = await SettingService.getUser(query, dbAuthor);
+        const targetDbUser = userSettings.targetUser;
+
+        if (targetDbUser.id === dbAuthor.id) {
+            const payload = new ComponentsV2().setAccent(0xff0000).addText('❌ You have a 100% taste match with yourself!').build();
+            if (isSlash) await interactionOrMessage.reply(payload);
+            else await interactionOrMessage.channel.send(payload);
+            return;
         }
+
+        if (isSlash && !interactionOrMessage.deferred) await interactionOrMessage.deferReply();
 
         try {
-            const result = await FriendService.getTasteAffinity(author.id, targetUser.id);
+            const result = await FriendService.getTasteAffinity(dbAuthor.id, targetDbUser.id);
             
             let color = 0x8a2be2; // Purple default
             if (result.percent > 85) color = 0x00ff00; // Green for high match
@@ -66,15 +67,14 @@ export default class TasteCommand extends BaseCommand {
 
             const payload = builder.build();
 
-            if (isSlash) {
-                await interactionOrMessage.editReply(payload);
-            } else {
-                await interactionOrMessage.reply(payload);
-            }
+            if (isSlash) await interactionOrMessage.editReply(payload);
+            else await interactionOrMessage.channel.send(payload);
 
         } catch (err: any) {
-            const reply = `❌ **Error:** ${err.message}`;
-            return isSlash ? interactionOrMessage.editReply(reply) : interactionOrMessage.reply(reply);
+            console.error(err);
+            const payload = new ComponentsV2().setAccent(0xff0000).addText(`❌ **Error:** ${err.message}`).build();
+            if (isSlash) await interactionOrMessage.editReply(payload);
+            else await interactionOrMessage.channel.send(payload);
         }
     }
 }

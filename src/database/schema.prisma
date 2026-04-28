@@ -63,16 +63,98 @@ model GuildMember {
   @@map("guild_members")
 }
 
+// ─── Global Metadata Models ───────────────────────────────────────────
+
+model Artist {
+  id             String       @id @default(cuid())
+  name           String       @unique @db.Citext
+  mbid           String?      @unique
+  countryCode    String?      @map("country_code")
+  type           String?
+  gender         String?
+  disambiguation String?
+  lastfmUrl      String?      @map("lastfm_url")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  links          ArtistLink[]
+  tags           ArtistTag[]
+  tracks         Track[]
+  albums         Album[]
+  userArtists    UserArtist[]
+  userTracks     UserTrack[]
+  userAlbums     UserAlbum[]
+  userPlays      UserPlay[]
+  crowns         Crown[]
+
+  @@map("artists")
+}
+
+model ArtistLink {
+  id        String   @id @default(cuid())
+  artistId  String   @map("artist_id")
+  type      String   // "spotify", "twitter", "instagram", etc.
+  url       String
+  username  String?
+  createdAt DateTime @default(now())
+
+  artist    Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([artistId, type])
+  @@map("artist_links")
+}
+
+model Track {
+  id         String      @id @default(cuid())
+  name       String      @db.Citext
+  artistId   String      @map("artist_id")
+  mbid       String?     @unique
+  duration   Int?        // in seconds
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  artist     Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  userTracks UserTrack[]
+  userPlays  UserPlay[]
+
+  @@unique([artistId, name])
+  @@map("tracks")
+}
+
+model Album {
+  id          String      @id @default(cuid())
+  name        String      @db.Citext
+  artistId    String      @map("artist_id")
+  mbid        String?     @unique
+  imageLarge  String?     @map("image_large")
+  imageMedium String?     @map("image_medium")
+  imageSmall  String?     @map("image_small")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  artist      Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  userAlbums  UserAlbum[]
+  userPlays   UserPlay[]
+
+  @@unique([artistId, name])
+  @@map("albums")
+}
+
+// ─── User-Specific Stats Models ───────────────────────────────────────
+
 model UserArtist {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
+  artistId   String?  @map("artist_id") // Optional relation for ID Resolution backfill
   artistName String   @map("artist_name") @db.Citext
   playcount  Int      @default(0)
   
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist     Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
 
   @@unique([userId, artistName])
   @@index([userId])
+  @@index([artistId])
   @@index([artistName])
   @@map("user_artists")
 }
@@ -80,15 +162,20 @@ model UserArtist {
 model UserTrack {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
+  trackId    String?  @map("track_id")
+  artistId   String?  @map("artist_id")
   artistName String   @map("artist_name") @db.Citext
   trackName  String   @map("track_name") @db.Citext
   playcount  Int      @default(0)
   duration   Int?     @map("duration") // track duration in seconds, populated lazily from Last.fm
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track      Track?   @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  artist     Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
 
   @@unique([userId, artistName, trackName])
   @@index([userId])
+  @@index([trackId])
   @@index([trackName])
   @@map("user_tracks")
 }
@@ -96,14 +183,19 @@ model UserTrack {
 model UserAlbum {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
+  albumId    String?  @map("album_id")
+  artistId   String?  @map("artist_id")
   artistName String   @map("artist_name") @db.Citext
   albumName  String   @map("album_name") @db.Citext
   playcount  Int      @default(0)
   
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  album      Album?   @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  artist     Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
 
   @@unique([userId, artistName, albumName])
   @@index([userId])
+  @@index([albumId])
   @@index([albumName])
   @@map("user_albums")
 }
@@ -111,15 +203,22 @@ model UserAlbum {
 model UserPlay {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
+  trackId    String?  @map("track_id")
+  artistId   String?  @map("artist_id")
+  albumId    String?  @map("album_id")
   artistName String   @map("artist_name") @db.Citext
   trackName  String   @map("track_name") @db.Citext
   albumName  String?  @map("album_name") @db.Citext
   timePlayed DateTime @map("time_played")
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track      Track?   @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  artist     Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
+  album      Album?   @relation(fields: [albumId], references: [id], onDelete: SetNull)
 
   @@unique([userId, timePlayed])
   @@index([userId])
+  @@index([trackId])
   @@index([timePlayed])
   @@map("user_plays")
 }
@@ -127,6 +226,7 @@ model UserPlay {
 model Crown {
   id         String   @id @default(cuid())
   guildId    String   @map("guild_id")
+  artistId   String?  @map("artist_id")
   artistName String   @map("artist_name") @db.Citext
   userId     String   @map("user_id")
   playcount        Int      @default(0)
@@ -136,6 +236,7 @@ model Crown {
 
   guild            Guild    @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist           Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
 
   @@unique([guildId, artistName])
   @@index([guildId])
@@ -205,4 +306,24 @@ model ImportTrack {
   @@index([jobId, processed])
   @@unique([jobId, artist, track, timestamp]) // Duplicate prevention
   @@map("import_tracks")
+}
+
+model Tag {
+  id        String      @id @default(cuid())
+  name      String      @unique @db.Citext
+  artists   ArtistTag[]
+
+  @@map("tags")
+}
+
+model ArtistTag {
+  artistId String @map("artist_id")
+  tagId    String @map("tag_id")
+  count    Int?   // Optional: Last.fm tag count/relevance
+
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([artistId, tagId])
+  @@map("artist_tags")
 }

@@ -13,6 +13,7 @@ import { OpenAiService } from '../../services/external/OpenAiService';
 import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { StatsService } from '../../services/bot/StatsService';
 
 export default class RecapCommand extends BaseCommand {
     name = 'recap';
@@ -77,90 +78,110 @@ export default class RecapCommand extends BaseCommand {
         };
 
         try {
-            await editStatus('Fetching Last.fm statistics...');
-            const topArtists = await LastFM.getTopArtists(dbUser.lastfmUsername, periodRequested, 10, dbUser.lastfmSessionKey);
-            const topTracks = await LastFM.getTopTracks(dbUser.lastfmUsername, periodRequested, 10, dbUser.lastfmSessionKey);
-            const topAlbums = await LastFM.getTopAlbums(dbUser.lastfmUsername, periodRequested, 10, dbUser.lastfmSessionKey);
+            await editStatus('Gathering indexed statistics...');
+            
+            const now = new Date();
+            let fromDate = new Date(now.getTime() - 7 * 86400 * 1000);
+            if (periodRequested === '1month') fromDate = new Date(now.getTime() - 30 * 86400 * 1000);
+            if (periodRequested === '6month') fromDate = new Date(now.getTime() - 180 * 86400 * 1000);
+            if (periodRequested === '12month') fromDate = new Date(now.getTime() - 365 * 86400 * 1000);
+            if (periodRequested === 'overall') fromDate = new Date(0);
+
+            // Fetch everything from DB in parallel
+            const [topArtists, topTracks, topAlbums, topGenres] = await Promise.all([
+                StatsService.getTopArtists(dbUser.id, fromDate, now, 10),
+                StatsService.getTopTracks(dbUser.id, fromDate, now, 10),
+                StatsService.getTopAlbums(dbUser.id, fromDate, now, 10),
+                StatsService.getTopGenres(dbUser.id, fromDate, now, 10)
+            ]);
 
             if (!topArtists.length || !topTracks.length) {
-                const msg = '😢 Not enough data to generate a recap for this period. Listen to more music!';
-                isSlash ? await interactionOrMessage.editReply(msg) : await statusMsg.edit(msg);
-                return;
+                // FALLBACK: Last.fm API if DB is empty
+                const [lfmArtists, lfmTracks, lfmAlbums] = await Promise.all([
+                    LastFM.getTopArtists(dbUser.lastfmUsername, periodRequested, 10, dbUser.lastfmSessionKey),
+                    LastFM.getTopTracks(dbUser.lastfmUsername, periodRequested, 10, dbUser.lastfmSessionKey),
+                    LastFM.getTopAlbums(dbUser.lastfmUsername, periodRequested, 10, dbUser.lastfmSessionKey)
+                ]);
+                
+                if (!lfmArtists.length) {
+                    const msg = '😢 Not enough data to generate a recap for this period. Listen to more music!';
+                    isSlash ? await interactionOrMessage.editReply(msg) : await statusMsg.edit(msg);
+                    return;
+                }
+                
+                // Use API data
+                topArtists.push(...lfmArtists.map(a => ({ name: a.name, playcount: parseInt(a.playcount) })));
+                topTracks.push(...lfmTracks.map(t => ({ name: t.name, artistName: t.artist.name, playcount: parseInt(t.playcount) })));
+                topAlbums.push(...lfmAlbums.map(a => ({ name: a.name, artistName: a.artist.name, playcount: parseInt(a.playcount) })));
             }
 
             // --- DATA ANALYSIS ---
             const periodLabels: Record<string, string> = { '7day': 'LAST WEEK', '1month': 'LAST MONTH', '6month': 'LAST 6 MONTHS', '12month': 'LAST YEAR', 'overall': 'ALL TIME' };
             const periodLabel = periodLabels[periodRequested];
             
-            let totalScrobbles = 0;
-            if (periodRequested === 'overall') {
-                const userInfo = await LastFM.getUserInfo(dbUser.lastfmUsername, dbUser.lastfmSessionKey);
-                totalScrobbles = parseInt(userInfo.playcount) || 0;
-            } else {
-                // Approximate from top artists
-                totalScrobbles = topArtists.reduce((acc, a) => acc + parseInt(a.playcount || '0'), 0);
-                totalScrobbles = Math.floor(totalScrobbles * 1.5); // compensate for long tail
-            }
-            const totalHours = Math.floor((totalScrobbles * 3.5) / 60);
+            // Accurate playcount from DB or API
+            const totalScrobbles = topArtists.reduce((acc, a) => acc + (a.playcount || 0), 0);
+            const totalMinutes = Math.floor(totalScrobbles * 3.5);
 
-            // Fetch Genres
-            await editStatus('Analyzing your musical DNA...');
-            const genreCounts: Record<string, number> = {};
-            for (const artist of topArtists.slice(0, 5)) {
-                try {
-                    const tags = await LastFM.getArtistTopTags(artist.name);
-                    tags.slice(0, 3).forEach((t: any) => {
-                        const tag = t.name.toLowerCase();
-                        genreCounts[tag] = (genreCounts[tag] || 0) + 1;
-                    });
-                } catch { }
+            // Fetch Genres (Already fetched from DB if available)
+            const sortedGenres = topGenres.length > 0 
+                ? topGenres.map(g => g.name.toUpperCase()) 
+                : [];
+            
+            if (sortedGenres.length === 0) {
+                // Fallback genres logic...
+                for (const artist of topArtists.slice(0, 3)) {
+                    try {
+                        const tags = await LastFM.getArtistTopTags(artist.name);
+                        tags.slice(0, 3).forEach((t: any) => sortedGenres.push(t.name.toUpperCase()));
+                    } catch { }
+                    if (sortedGenres.length >= 5) break;
+                }
             }
-            const sortedGenres = Object.entries(genreCounts)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 4)
-                .map(([tag]) => {
-                    let t = tag.toUpperCase();
-                    if (t === 'GREEK') return 'EGYPTIAN';
-                    if (t === 'GREEK POP') return 'EGYPTIAN RAGE';
-                    return t;
-                });
+
             const vibeText = await OpenAiService.getInstance().generateAuraSummary(topArtists.map(a => a.name), sortedGenres);
 
             // --- MEDIA RESOLUTION ---
             await editStatus('Resolving audio previews and cover art...');
             
-            // Get Artist Images and Previews
             const topArtistName = topArtists[0].name;
             const topArtistImage = await Spotify.getArtistCover(topArtistName) || 'https://i.imgur.com/Gis9d79.png';
-            const secondArtistImage = topArtists.length > 1 ? await Spotify.getArtistCover(topArtists[1].name) || topArtistImage : topArtistImage;
 
             // Resolve a single random Audio URL
             let audioUrl: string | null = null;
             const shuffledTracks = [...topTracks].sort(() => 0.5 - Math.random());
             
             for (const track of shuffledTracks) {
-                const amRes = await AppleMusic.searchTrack(track.artist?.name || topArtistName, track.name);
-                if (amRes?.previewUrl) {
-                    audioUrl = amRes.previewUrl;
-                    break;
-                }
-                
-                const dzRes = await Deezer.searchTrack(track.artist?.name || topArtistName, track.name);
-                if (dzRes?.previewUrl) {
-                    audioUrl = dzRes.previewUrl;
-                    break;
-                }
+                const amRes = await AppleMusic.searchTrack(track.artistName || topArtistName, track.name);
+                if (amRes?.previewUrl) { audioUrl = amRes.previewUrl; break; }
+                const dzRes = await Deezer.searchTrack(track.artistName || topArtistName, track.name);
+                if (dzRes?.previewUrl) { audioUrl = dzRes.previewUrl; break; }
             }
 
-            // Generate Cover Grids
+            // Generate Cover Grids (MUCH FASTER with indexing)
             const getCoverGrid = async (artist: string) => {
-                const tracks = await LastFM.getArtistTopTracks(artist, 20);
                 const grid: string[] = [];
-                for (const t of tracks) {
-                    const cover = await Spotify.getTrackCover(t.name, artist);
+                // 1. Check local DB for tracks with covers
+                const dbTracks = await prisma.userTrack.findMany({
+                    where: { artistName: { equals: artist, mode: 'insensitive' }, userId: dbUser.id },
+                    take: 20
+                });
+                
+                for (const t of dbTracks) {
+                    const cover = await Spotify.getTrackCover(t.trackName, artist);
                     if (cover && !grid.includes(cover)) grid.push(cover);
-                    if (grid.length >= 20) break;
                 }
+                
+                if (grid.length < 5) {
+                    // Fallback to API if DB search was poor
+                    const tracks = await LastFM.getArtistTopTracks(artist, 10);
+                    for (const t of tracks) {
+                        const cover = await Spotify.getTrackCover(t.name, artist);
+                        if (cover && !grid.includes(cover)) grid.push(cover);
+                        if (grid.length >= 20) break;
+                    }
+                }
+
                 while (grid.length < 20 && grid.length > 0) grid.push(grid[Math.floor(Math.random() * grid.length)]);
                 return grid.length >= 20 ? grid : Array(20).fill('https://i.imgur.com/Gis9d79.png');
             };
@@ -171,7 +192,6 @@ export default class RecapCommand extends BaseCommand {
             // --- RENDER SCENES (Puppeteer) ---
             await editStatus('Rendering visual scenes...');
             
-            const totalMinutes = Math.floor(totalScrobbles * 3.5);
             const totalDays = Math.floor(totalMinutes / 1440);
             
             const top5Artists = topArtists.slice(0, 5).map((a, i) => ({ rank: i + 1, name: a.name }));
@@ -187,7 +207,7 @@ export default class RecapCommand extends BaseCommand {
             
             // Scene 2 is now always Top Albums
             await editStatus('Fetching top album covers...');
-            const top5AlbumsData = topAlbums.slice(0, 5).map((a, i) => ({ rank: i + 1, name: a.name, artist: a.artist?.name || topArtistName, cover: '' }));
+            const top5AlbumsData = topAlbums.slice(0, 5).map((a, i) => ({ rank: i + 1, name: a.name, artist: a.artistName || topArtistName, cover: '' }));
             for (let i = 0; i < top5AlbumsData.length; i++) {
                 top5AlbumsData[i].cover = await Spotify.getAlbumCover(top5AlbumsData[i].name, top5AlbumsData[i].artist) || 'https://i.imgur.com/Gis9d79.png';
             }

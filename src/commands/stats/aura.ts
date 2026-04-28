@@ -14,6 +14,7 @@ import { PuppeteerService } from '../../services/external/PuppeteerService';
 import fsp from 'fs/promises';
 import path from 'path';
 import { resolveTargetUser } from '../../utils/userResolver';
+import { StatsService } from '../../services/bot/StatsService';
 
 
 // Per-user cover history: userId → Set of cover URLs already shown
@@ -96,64 +97,78 @@ export default class AuraCommand extends BaseCommand {
 
         try {
             let artists: any[] = [];
+            let genreCounts: Record<string, number> = {};
             let displayFreqText = 'WEEKLY FREQUENCY';
             let displayPeriodLabel = 'LAST 7 DAYS';
 
+            // ── NEW INDEXED LOGIC ──
+            const now = new Date();
+            let fromDate = new Date(now.getTime() - 7 * 86400 * 1000);
+            
             if (periodRequested === 'daily') {
+                fromDate = new Date(now.getTime() - 86400 * 1000);
                 displayFreqText = 'DAILY FREQUENCY';
                 displayPeriodLabel = 'LAST 24 HOURS';
-                const recentTracks = await LastFM.getRecentTracks(dbUser.lastfmUsername, 200);
+            } else if (periodRequested === 'monthly') {
+                fromDate = new Date(now.getTime() - 30 * 86400 * 1000);
+                displayFreqText = 'MONTHLY FREQUENCY';
+                displayPeriodLabel = 'LAST 30 DAYS';
+            } else if (periodRequested === 'yearly') {
+                fromDate = new Date(now.getTime() - 365 * 86400 * 1000);
+                displayFreqText = 'YEARLY FREQUENCY';
+                displayPeriodLabel = 'LAST YEAR';
+            } else if (periodRequested === 'alltime') {
+                fromDate = new Date(0);
+                displayFreqText = 'OVERALL FREQUENCY';
+                displayPeriodLabel = 'ALL TIME';
+            }
 
-                const oneDayAgo = Date.now() / 1000 - 86400;
-                const artistCounts: Record<string, number> = {};
-
-                for (const track of recentTracks) {
-                    const ts = parseInt(track.date?.uts || '0');
-                    if (ts > 0 && ts < oneDayAgo) break;
-
-                    const artName = track.artist?.['#text'] || track.artist?.name;
-                    if (artName) {
-                        artistCounts[artName] = (artistCounts[artName] || 0) + 1;
-                    }
-                }
-
-                if (recentTracks.length > 0 && recentTracks[0]['@attr']?.nowplaying) {
-                    const artName = recentTracks[0].artist?.['#text'] || recentTracks[0].artist?.name;
-                    if (artName) {
-                        artistCounts[artName] = (artistCounts[artName] || 0) + 1;
-                    }
-                }
-
-                artists = Object.entries(artistCounts)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
-                    .map(([name]) => ({ name }));
+            // Fetch Top Artists from DB
+            artists = await StatsService.getTopArtists(dbUser.id, fromDate, now, 10);
+            
+            if (artists.length > 0) {
+                // Fetch Genres from DB (much faster)
+                const topGenres = await StatsService.getTopGenres(dbUser.id, fromDate, now, 20);
+                topGenres.forEach(g => {
+                    genreCounts[g.name.toLowerCase()] = g.count;
+                });
             } else {
-                let lfmPeriod: '7day' | '1month' | '3month' | '6month' | '12month' | 'overall' = '7day';
-                if (periodRequested === 'monthly') { lfmPeriod = '1month'; displayFreqText = 'MONTHLY FREQUENCY'; displayPeriodLabel = 'LAST 30 DAYS'; }
-                if (periodRequested === 'yearly') { lfmPeriod = '12month'; displayFreqText = 'YEARLY FREQUENCY'; displayPeriodLabel = 'LAST YEAR'; }
-                if (periodRequested === 'alltime') { lfmPeriod = 'overall'; displayFreqText = 'OVERALL FREQUENCY'; displayPeriodLabel = 'ALL TIME'; }
-
-                artists = await LastFM.getTopArtists(dbUser.lastfmUsername, lfmPeriod, 5, dbUser.lastfmSessionKey);
-
+                // FALLBACK: Last.fm API
+                if (periodRequested === 'daily') {
+                    const recentTracks = await LastFM.getRecentTracks(dbUser.lastfmUsername, 200);
+                    const oneDayAgo = Date.now() / 1000 - 86400;
+                    const artistCounts: Record<string, number> = {};
+                    for (const track of recentTracks) {
+                        const ts = parseInt(track.date?.uts || '0');
+                        if (ts > 0 && ts < oneDayAgo) break;
+                        const artName = track.artist?.['#text'] || track.artist?.name;
+                        if (artName) artistCounts[artName] = (artistCounts[artName] || 0) + 1;
+                    }
+                    artists = Object.entries(artistCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name]) => ({ name }));
+                } else {
+                    let lfmPeriod: '7day' | '1month' | '3month' | '6month' | '12month' | 'overall' = '7day';
+                    if (periodRequested === 'monthly') lfmPeriod = '1month';
+                    if (periodRequested === 'yearly') lfmPeriod = '12month';
+                    if (periodRequested === 'alltime') lfmPeriod = 'overall';
+                    artists = await LastFM.getTopArtists(dbUser.lastfmUsername, lfmPeriod, 5, dbUser.lastfmSessionKey);
+                }
+                
+                // Fetch Genres for API fallback
+                for (const artist of artists) {
+                    try {
+                        const tags = await LastFM.getArtistTopTags(artist.name);
+                        tags.slice(0, 3).forEach((t: any) => {
+                            const tag = t.name.toLowerCase();
+                            genreCounts[tag] = (genreCounts[tag] || 0) + 1;
+                        });
+                    } catch { }
+                }
             }
 
             if (!artists?.length) {
                 const msg = '😢 Not enough data to generate an aura. Listen to some music first!';
                 isSlash ? await interactionOrMessage.editReply(msg) : await interactionOrMessage.channel.send(msg);
                 return;
-            }
-
-            // 2. Analyze Genres
-            const genreCounts: Record<string, number> = {};
-            for (const artist of artists) {
-                try {
-                    const tags = await LastFM.getArtistTopTags(artist.name);
-                    tags.slice(0, 3).forEach((t: any) => {
-                        const tag = t.name.toLowerCase();
-                        genreCounts[tag] = (genreCounts[tag] || 0) + 1;
-                    });
-                } catch { }
             }
 
             const knownGenres = ['electronic', 'rock', 'hip-hop', 'rap', 'pop', 'chill', 'jazz', 'metal', 'r&b', 'soul', 'indie', 'alternative', 'trap', 'country', 'classical', 'punk', 'reggae', 'lo-fi'];

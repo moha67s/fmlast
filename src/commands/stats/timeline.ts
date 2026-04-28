@@ -10,6 +10,7 @@ import axios from 'axios';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { resolveTargetUser } from '../../utils/userResolver';
+import { StatsService } from '../../services/bot/StatsService';
 
 // ═══════════════════════════════════════════════════════
 // TYPES
@@ -108,11 +109,20 @@ export default class TimelineCommand extends BaseCommand {
         const userId = targetUser.id;
 
         let view = 'yearly';
+        let requestedYear: number | null = null;
+
         if (isSlash) {
             view = interactionOrMessage.options.getString('view') || 'yearly';
         } else if (args && args.length > 0) {
             const joinedArgs = args.join(' ').toLowerCase();
             if (joinedArgs.includes('month')) view = 'monthly';
+            
+            // Year Detection (e.g. 2024)
+            const yearMatch = joinedArgs.match(/\b(20\d{2}|19\d{2})\b/);
+            if (yearMatch) {
+                requestedYear = parseInt(yearMatch[1]);
+                view = 'monthly'; // Force monthly for specific year requests
+            }
         }
 
         const dbUser = await prisma.user.findUnique({ where: { discordId: userId } });
@@ -129,190 +139,110 @@ export default class TimelineCommand extends BaseCommand {
 
         try {
             const userInfo = await LastFM.getUserInfo(dbUser.lastfmUsername, dbUser.lastfmSessionKey);
-
             const eras: EraEntry[] = [];
 
-            if (view === 'monthly') {
-                // ── MONTHLY: last 6 months - use precise timestamp ranges ──
-                const now = new Date();
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            // --- DATA RANGE RESOLUTION ---
+            let fromDate: Date | undefined;
+            let toDate: Date | undefined;
+            if (requestedYear) {
+                fromDate = new Date(requestedYear, 0, 1);
+                toDate = new Date(requestedYear, 11, 31, 23, 59, 59);
+            }
 
-                for (let i = 5; i >= 0; i--) {
+            // ── NEW INDEXED LOGIC ──
+            const limit = requestedYear ? 12 : (view === 'monthly' ? 6 : 10);
+            const dbEras = await StatsService.getEras(dbUser.id, view === 'monthly' ? 'month' : 'year', limit, fromDate, toDate);
+            
+            if (dbEras.length > 0) {
+                // We have local scrobbles! Use them for a super fast experience.
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                
+                // Sort by date ascending for a chronological timeline if it's a specific year
+                const sortedEras = requestedYear ? [...dbEras].sort((a, b) => a.era_start.getTime() - b.era_start.getTime()) : dbEras;
+
+                for (const dbEra of sortedEras) {
+                    const label = view === 'monthly' 
+                        ? `${monthNames[dbEra.era_start.getMonth()]} ${dbEra.era_start.getFullYear()}`
+                        : `${dbEra.era_start.getFullYear()}`;
+                    
+                    const topArtist = dbEra.artist_name;
+
+                    // Genre detection (Try DB first)
+                    let genres: string[] = [];
                     try {
-                        const dStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                        const dEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-                        const from = Math.floor(dStart.getTime() / 1000);
-                        const to = Math.floor(dEnd.getTime() / 1000);
-                        const label = `${monthNames[dStart.getMonth()]} ${dStart.getFullYear()}`;
-
-                        // Fetch precise artist chart for this timestamp range
-                        const artists = await LastFM.getWeeklyArtistChart(
-                            dbUser.lastfmUsername, from, to, 10, dbUser.lastfmSessionKey
-                        );
-
-                        if (!artists?.length) continue;
-
-                        const topArtist = artists[0]?.name || 'Unknown';
-
-                        // Genre detection
-                        let genres: string[] = [];
-                        try {
+                        const dbArtist = await prisma.artist.findFirst({
+                            where: { name: { equals: topArtist, mode: 'insensitive' } },
+                            include: { tags: { include: { tag: true }, take: 3 } }
+                        });
+                        if (dbArtist && dbArtist.tags.length > 0) {
+                            genres = dbArtist.tags.map(t => t.tag.name);
+                        } else {
                             const tags = await LastFM.getArtistTopTags(topArtist);
                             genres = tags.slice(0, 3).map((t: any) => t.name);
-                        } catch { }
-
-                        // Cover art resolution
-                        let coverUrl: string | null = null;
-                        let coverSource = 'none';
-
-                        try {
-                            // 1. Get top albums FOR THIS EXACT RANGE
-                            const snapAlbums = await LastFM.getWeeklyAlbumChart(
-                                dbUser.lastfmUsername, from, to, 20, dbUser.lastfmSessionKey
-                            );
-                            const topEraAlbum = snapAlbums.find((a: any) =>
-                                (a.artist?.name || a.artist?.['#text'] || '').toLowerCase() === topArtist.toLowerCase()
-                            );
-
-                            const eraAlbumName = topEraAlbum?.name || '';
-
-                            if (eraAlbumName) {
-                                coverUrl = await Spotify.getAlbumCover(eraAlbumName, topArtist);
-                                if (coverUrl) coverSource = 'Spotify (A)';
-                            }
-
-                            if (!coverUrl) {
-                                coverUrl = await Spotify.getArtistCover(topArtist);
-                                if (coverUrl) coverSource = 'Spotify (P)';
-                            }
-
-                            if (!coverUrl && eraAlbumName) {
-                                const am = await AppleMusic.searchTrack(topArtist, eraAlbumName);
-                                if (am?.artworkUrl) {
-                                    coverUrl = am.artworkUrl.replace('{w}x{h}', '300x300');
-                                    coverSource = 'Apple Music';
-                                }
-                            }
-                        } catch { }
-
-                        if (!coverUrl) {
-                            coverUrl = await Deezer.getArtistCover(topArtist);
-                            if (coverUrl) coverSource = 'Deezer (Artist)';
-                            else coverSource = 'Last.fm';
                         }
+                    } catch { }
 
-                        console.log(`[timeline] ${coverSource.padEnd(11)} | ${label.padEnd(13)} | ${topArtist}`);
+                    // Cover art resolution
+                    let coverUrl: string | null = null;
+                    try {
+                        coverUrl = await Spotify.getArtistCover(topArtist);
+                        if (!coverUrl) {
+                            const dzCover = await Deezer.getArtistCover(topArtist);
+                            if (dzCover) coverUrl = dzCover;
+                        }
+                    } catch { }
 
-                        // Tracks for this range? Last.fm doesn't have a weekly track chart endpoint in standard API
-                        // so we'll approximate or leave blank, but playcount is now accurate!
-                        const totalPlaycount = artists.reduce(
-                            (sum: number, a: any) => sum + (parseInt(a.playcount) || 0), 0
-                        );
-
-                        eras.push({
-                            label,
-                            topArtist,
-                            topTrack: '', // Precise track range fetching is expensive/unreliable via LFM API
-                            topGenres: genres,
-                            coverUrl,
-                            playcount: totalPlaycount,
-                            eraName: nameEra(genres)
-                        });
-                    } catch (err) {
-                        console.error(`[timeline] Monthly loop error for index ${i}:`, err);
-                    }
+                    eras.push({
+                        label,
+                        topArtist,
+                        topTrack: '', // Less critical for timeline
+                        topGenres: genres,
+                        coverUrl,
+                        playcount: dbEra.playcount,
+                        eraName: nameEra(genres)
+                    });
                 }
             } else {
-                // ── YEARLY: snapshot approach using standard LastFM periods ──
-                // Last.fm's getWeeklyAlbumChart only returns data within a specific ~1-week window
-                // so we instead build era snapshots from reliable standard-period endpoints.
-                const periodDefs: { label: string; period: string }[] = [
-                    { label: 'All Time', period: 'overall' },
-                    { label: 'Last Year', period: '12month' },
-                    { label: '6 Months', period: '6month' },
-                    { label: '3 Months', period: '3month' },
-                    { label: 'Last Month', period: '1month' },
-                    { label: 'This Week', period: '7day' },
-                ];
-
-                for (const def of periodDefs) {
-                    try {
-                        const artists = await LastFM.getTopArtists(
-                            dbUser.lastfmUsername, def.period, 5, dbUser.lastfmSessionKey
-                        );
-
-                        if (!artists?.length) continue;
-
-                        const topArtist = artists[0]?.name || 'Unknown';
-
-                        // Genre detection
-                        let genres: string[] = [];
+                // FALLBACK: Use API logic (Old way)
+                if (view === 'monthly') {
+                    const now = new Date();
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    for (let i = 5; i >= 0; i--) {
                         try {
-                            const tags = await LastFM.getArtistTopTags(topArtist);
-                            genres = tags.slice(0, 3).map((t: any) => t.name);
+                            const dStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                            const dEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+                            const from = Math.floor(dStart.getTime() / 1000);
+                            const to = Math.floor(dEnd.getTime() / 1000);
+                            const label = `${monthNames[dStart.getMonth()]} ${dStart.getFullYear()}`;
+                            const artists = await LastFM.getWeeklyArtistChart(dbUser.lastfmUsername, from, to, 10, dbUser.lastfmSessionKey);
+                            if (!artists?.length) continue;
+                            const topArtist = artists[0]?.name || 'Unknown';
+                            let genres: string[] = [];
+                            try {
+                                const tags = await LastFM.getArtistTopTags(topArtist);
+                                genres = tags.slice(0, 3).map((t: any) => t.name);
+                            } catch { }
+                            let coverUrl = await Spotify.getArtistCover(topArtist);
+                            const totalPlaycount = artists.reduce((sum: number, a: any) => sum + (parseInt(a.playcount) || 0), 0);
+                            eras.push({ label, topArtist, topTrack: '', topGenres: genres, coverUrl, playcount: totalPlaycount, eraName: nameEra(genres) });
                         } catch { }
-
-                        // Cover art resolution chain: Top Period Album → Spotify Album → Spotify Artist → Fallbacks
-                        let coverUrl: string | null = null;
-                        let coverSource = 'none';
-
+                    }
+                } else {
+                    const periodDefs = [{ label: 'All Time', period: 'overall' }, { label: 'Last Year', period: '12month' }, { label: '6 Months', period: '6month' }, { label: '3 Months', period: '3month' }, { label: 'Last Month', period: '1month' }, { label: 'This Week', period: '7day' }];
+                    for (const def of periodDefs) {
                         try {
-                            const snapAlbums = await LastFM.getTopAlbums(dbUser.lastfmUsername, def.period, 20, dbUser.lastfmSessionKey);
-                            const topEraAlbum = snapAlbums.find((a: any) =>
-                                (a.artist?.name || a.artist?.['#text'] || '').toLowerCase() === topArtist.toLowerCase()
-                            );
-
-                            const eraAlbumName = topEraAlbum?.name || '';
-
-                            if (eraAlbumName) {
-                                coverUrl = await Spotify.getAlbumCover(eraAlbumName, topArtist);
-                                if (coverUrl) coverSource = 'Spotify (A)';
-                            }
-
-                            if (!coverUrl) {
-                                coverUrl = await Spotify.getArtistCover(topArtist);
-                                if (coverUrl) coverSource = 'Spotify (P)';
-                            }
-
-                            if (!coverUrl && eraAlbumName) {
-                                const am = await AppleMusic.searchTrack(topArtist, eraAlbumName);
-                                if (am?.artworkUrl) {
-                                    coverUrl = am.artworkUrl.replace('{w}x{h}', '300x300');
-                                    coverSource = 'Apple Music';
-                                }
-                            }
+                            const artists = await LastFM.getTopArtists(dbUser.lastfmUsername, def.period, 5, dbUser.lastfmSessionKey);
+                            if (!artists?.length) continue;
+                            const topArtist = artists[0]?.name || 'Unknown';
+                            let genres: string[] = [];
+                            try {
+                                const tags = await LastFM.getArtistTopTags(topArtist);
+                                genres = tags.slice(0, 3).map((t: any) => t.name);
+                            } catch { }
+                            let coverUrl = await Spotify.getArtistCover(topArtist);
+                            const totalPlaycount = artists.reduce((sum: number, a: any) => sum + (parseInt(a.playcount) || 0), 0);
+                            eras.push({ label: def.label, topArtist, topTrack: '', topGenres: genres, coverUrl, playcount: totalPlaycount, eraName: nameEra(genres) });
                         } catch { }
-
-                        if (!coverUrl) {
-                            coverUrl = await Deezer.getArtistCover(topArtist);
-                            if (coverUrl) coverSource = 'Deezer (Artist)';
-                            else coverSource = 'Last.fm';
-                        }
-
-                        console.log(`[timeline] ${coverSource.padEnd(11)} | ${def.label.padEnd(13)} | ${topArtist}`);
-
-                        // Top track for this period
-                        const topTracksData = await LastFM.getTopTracks(
-                            dbUser.lastfmUsername, def.period, 1, dbUser.lastfmSessionKey
-                        ).catch(() => []);
-
-                        // Playcount approximation from artist playcount field
-                        const totalPlaycount = artists.reduce(
-                            (sum: number, a: any) => sum + (parseInt(a.playcount) || 0), 0
-                        );
-
-                        eras.push({
-                            label: def.label,
-                            topArtist,
-                            topTrack: (topTracksData as any[])?.[0]?.name || '',
-                            topGenres: genres,
-                            coverUrl,
-                            playcount: totalPlaycount,
-                            eraName: nameEra(genres)
-                        });
-                    } catch {
-                        // Skip silently
                     }
                 }
             }
@@ -340,6 +270,9 @@ export default class TimelineCommand extends BaseCommand {
             const userObjA = targetUser;
             const avatarUrl = userObjA.displayAvatarURL({ extension: 'png', size: 128 });
 
+            let viewLabel = (view === 'monthly' ? 'MUSIC TIMELINE  ·  LAST 6 MONTHS' : 'MUSIC TIMELINE  ·  YEARLY JOURNEY').toUpperCase();
+            if (requestedYear) viewLabel = `MUSIC TIMELINE  ·  YEAR ${requestedYear}`;
+
             const templateData = {
                 width,
                 height,
@@ -347,7 +280,7 @@ export default class TimelineCommand extends BaseCommand {
                 username: dbUser.lastfmUsername,
                 playcount: Number(userInfo?.playcount || 0).toLocaleString(),
                 avatarUrl,
-                viewLabel: (view === 'monthly' ? 'MUSIC TIMELINE  ·  LAST 6 MONTHS' : 'MUSIC TIMELINE  ·  YEARLY JOURNEY').toUpperCase(),
+                viewLabel,
                 eras: eras.map(e => ({
                     ...e,
                     color: eraColor(e.eraName),

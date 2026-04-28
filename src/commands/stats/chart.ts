@@ -14,6 +14,8 @@ import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
 import { resolveTargetUser } from '../../utils/userResolver';
+import { StatsService } from '../../services/bot/StatsService';
+import { CacheService } from '../../services/bot/CacheService';
 
 // ==================== OPTIONS INTERFACE ====================
 export interface ChartOptions {
@@ -34,7 +36,8 @@ export const DEFAULT_OPTIONS: ChartOptions = {
 
 /** Get the unix timestamp range for a custom period like "month-2026-03" or "year-2025" */
 function getCustomPeriodRange(periodInput: string): { from: number; to: number } | null {
-    const monthMatch = periodInput.match(/^month-(\d{4})-(\d{2})$/);
+    // month-2024-04 OR 2024-04
+    const monthMatch = periodInput.match(/^(?:month-)?(\d{4})-(\d{1,2})$/);
     if (monthMatch) {
         const year = parseInt(monthMatch[1]);
         const month = parseInt(monthMatch[2]) - 1;
@@ -43,7 +46,8 @@ function getCustomPeriodRange(periodInput: string): { from: number; to: number }
         return { from: Math.floor(from), to: Math.floor(to) };
     }
 
-    const yearMatch = periodInput.match(/^year-(\d{4})$/);
+    // year-2024 OR 2024
+    const yearMatch = periodInput.match(/^(?:year-)?(\d{4})$/);
     if (yearMatch) {
         const year = parseInt(yearMatch[1]);
         const from = new Date(year, 0, 1).getTime() / 1000;
@@ -128,8 +132,20 @@ export default class ChartCommand extends BaseCommand {
                 const numMatch = arg.match(/(\d+)/);
                 if (numMatch) {
                     const num = parseInt(numMatch[1]);
-                    if (num >= 1 && num <= 9) gridSize = num;
+                    // Check if it's JUST a grid size (1-9) or a year (4 digits)
+                    if (num >= 1 && num <= 9 && arg.length === 1) gridSize = num;
+                    else if (arg.includes('x')) {
+                        const [w, h] = arg.split('x').map(n => parseInt(n));
+                        if (w >= 1 && w <= 9) gridSize = w;
+                    }
                 }
+
+                // Check for custom period formats (YYYY-MM or YYYY)
+                if (getCustomPeriodRange(arg)) {
+                    periodInput = arg;
+                    continue;
+                }
+
                 const periodMap: Record<string, string> = {
                     day: 'daily', daily: 'daily',
                     week: 'weekly', weekly: 'weekly',
@@ -155,7 +171,7 @@ export default class ChartCommand extends BaseCommand {
         }
 
         try {
-            const payload = await ChartCommand.createChartPayload(userId, dbUser.lastfmUsername, dbUser.lastfmSessionKey, gridSize, periodInput, interactionOrMessage.client, DEFAULT_OPTIONS);
+            const payload = await ChartCommand.createChartPayload(dbUser.id, userId, dbUser.lastfmUsername, dbUser.lastfmSessionKey, gridSize, periodInput, interactionOrMessage.client, DEFAULT_OPTIONS);
             isSlash ? await interactionOrMessage.reply(payload) : await interactionOrMessage.channel.send(payload);
         } catch (err: any) {
             console.error(err);
@@ -165,7 +181,16 @@ export default class ChartCommand extends BaseCommand {
         }
     }
 
-    static async createChartPayload(discordId: string, username: string, sessionKey: string, gridSize: number, periodInput: string, client: any, options: ChartOptions = DEFAULT_OPTIONS): Promise<any> {
+    static async createChartPayload(dbUserId: string, discordId: string, username: string, sessionKey: string, gridSize: number, periodInput: string, client: any, options: ChartOptions = DEFAULT_OPTIONS): Promise<any> {
+        const optionsKey = `${options.skipNoImage}:${options.sfwOnly}:${options.hideSingles}:${options.releaseFilter}`;
+        const cacheKey = `chart:v1:${username}:${gridSize}:${periodInput}:${optionsKey}`;
+
+        const cached = await CacheService.get<any>(cacheKey);
+        if (cached) {
+            console.log(`  ${0x26A1} ${'CHART'.padEnd(7)} ${'CACHED'.padEnd(10)} ${username} - ${gridSize}x${gridSize} ${periodInput}`);
+            return cached;
+        }
+
         const needed = gridSize * gridSize;
         const periodInfo = this.getPeriodInfoStatic(periodInput);
         const { display: displayName, preset: datePreset } = periodInfo;
@@ -175,27 +200,52 @@ export default class ChartCommand extends BaseCommand {
 
         let rawAlbums: any[] = [];
         const customRange = getCustomPeriodRange(periodInput);
+        
+        // ── NEW INDEXED LOGIC ──
         if (customRange) {
-            rawAlbums = await LastFM.getWeeklyAlbumChart(username, customRange.from, customRange.to, fetchLimit, sessionKey);
+            const dbAlbums = await StatsService.getTopAlbums(dbUserId, new Date(customRange.from * 1000), new Date(customRange.to * 1000), fetchLimit);
+            rawAlbums = dbAlbums.map(a => ({
+                name: a.name,
+                artist: { name: a.artistName },
+                playcount: String(a.playcount)
+            }));
         } else {
             const apiPeriod = periodInfo.api;
             if (apiPeriod === 'daily') {
-                const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
-                const recentTracks = await LastFM.getRecentTracksPaginated(username, 200, 1, sessionKey, false, oneDayAgo);
-                const albumCounts = new Map<string, any>();
-                for (const track of recentTracks.tracks) {
-                    const albumName = track.album?.['#text'];
-                    const artistName = track.artist?.name || track.artist?.['#text'];
-                    if (!albumName || !artistName) continue;
-                    const key = `${albumName}|${artistName}`;
-                    if (!albumCounts.has(key)) {
-                        albumCounts.set(key, { name: albumName, artist: { name: artistName }, playcount: 0, image: track.image });
-                    }
-                    albumCounts.get(key).playcount++;
-                }
-                rawAlbums = Array.from(albumCounts.values()).sort((a, b) => b.playcount - a.playcount);
+                const oneDayAgo = new Date(Date.now() - 86400 * 1000);
+                const dbAlbums = await StatsService.getTopAlbums(dbUserId, oneDayAgo, new Date(), fetchLimit);
+                rawAlbums = dbAlbums.map(a => ({
+                    name: a.name,
+                    artist: { name: a.artistName },
+                    playcount: String(a.playcount)
+                }));
+            }
+        }
+
+        if (rawAlbums.length === 0) {
+            // FALLBACK: Last.fm API
+            if (customRange) {
+                rawAlbums = await LastFM.getWeeklyAlbumChart(username, customRange.from, customRange.to, fetchLimit, sessionKey);
             } else {
-                rawAlbums = await LastFM.getTopAlbums(username, apiPeriod as any, fetchLimit, sessionKey);
+                const apiPeriod = periodInfo.api;
+                if (apiPeriod === 'daily') {
+                    const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+                    const recentTracks = await LastFM.getRecentTracksPaginated(username, 200, 1, sessionKey, false, oneDayAgo);
+                    const albumCounts = new Map<string, any>();
+                    for (const track of recentTracks.tracks) {
+                        const albumName = track.album?.['#text'];
+                        const artistName = track.artist?.name || track.artist?.['#text'];
+                        if (!albumName || !artistName) continue;
+                        const key = `${albumName}|${artistName}`;
+                        if (!albumCounts.has(key)) {
+                            albumCounts.set(key, { name: albumName, artist: { name: artistName }, playcount: 0, image: track.image });
+                        }
+                        albumCounts.get(key).playcount++;
+                    }
+                    rawAlbums = Array.from(albumCounts.values()).sort((a, b) => b.playcount - a.playcount);
+                } else {
+                    rawAlbums = await LastFM.getTopAlbums(username, apiPeriod as any, fetchLimit, sessionKey);
+                }
             }
         }
 
@@ -244,13 +294,16 @@ export default class ChartCommand extends BaseCommand {
             label: 'Edit'
         };
 
-        return new ComponentsV2()
+        const payload = new ComponentsV2()
             .setAccent(0xff0000)
             .addMedia(cdnUrl, albumDescriptions)
             .addText(`**[${gridSize}x${gridSize} ${displayName} Chart](https://www.last.fm/user/${username}/library/albums?date_preset=${datePreset}) for ${username}**`)
             .addSeparator()
             .addAction(`-# ${username} has ${userInfo.playcount?.toLocaleString() || '0'} scrobbles`, editButton)
             .build();
+
+        await CacheService.set(cacheKey, payload, 600); // Cache chart result for 10 minutes
+        return payload;
     }
 
     private static async filterAlbums(albums: any[], options: ChartOptions): Promise<any[]> {
@@ -287,7 +340,8 @@ export default class ChartCommand extends BaseCommand {
         };
         if (map[periodInput]) return map[periodInput];
 
-        const monthMatch = periodInput.match(/^month-(\d{4})-(\d{2})$/);
+        // Custom Month: YYYY-MM or month-YYYY-MM
+        const monthMatch = periodInput.match(/^(?:month-)?(\d{4})-(\d{1,2})$/);
         if (monthMatch) {
             const year = parseInt(monthMatch[1]);
             const month = parseInt(monthMatch[2]);
@@ -295,7 +349,8 @@ export default class ChartCommand extends BaseCommand {
             return { display: `${monthNames[month]} ${year}`, api: 'custom', preset: 'ALL' };
         }
 
-        const yearMatch = periodInput.match(/^year-(\d{4})$/);
+        // Custom Year: YYYY or year-YYYY
+        const yearMatch = periodInput.match(/^(?:year-)?(\d{4})$/);
         if (yearMatch) {
             return { display: yearMatch[1], api: 'custom', preset: 'ALL' };
         }

@@ -6,6 +6,7 @@ import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { OpenAiService } from '../../services/external/OpenAiService';
 import { parseArgs } from '../../utils/prefixParser';
 import { resolveTargetUser } from '../../utils/userResolver';
+import { StatsService } from '../../services/bot/StatsService';
 
 export default class InsightsCommand extends BaseCommand {
     name = 'insights';
@@ -69,11 +70,25 @@ export default class InsightsCommand extends BaseCommand {
         }
 
         try {
-            // 1. Fetch Top Artists & Tracks
-            const [topArtists, topTracks] = await Promise.all([
-                LastFM.getTopArtists(dbUser.lastfmUsername, lfmPeriod as any, 10, dbUser.lastfmSessionKey),
-                LastFM.getTopTracks(dbUser.lastfmUsername, lfmPeriod as any, 10, dbUser.lastfmSessionKey)
-            ]);
+            const now = new Date();
+            let fromDate = new Date(now.getTime() - 7 * 86400 * 1000);
+            if (lfmPeriod === '1month') fromDate = new Date(now.getTime() - 30 * 86400 * 1000);
+            if (lfmPeriod === '3month') fromDate = new Date(now.getTime() - 90 * 86400 * 1000);
+            if (lfmPeriod === '6month') fromDate = new Date(now.getTime() - 180 * 86400 * 1000);
+            if (lfmPeriod === '12month') fromDate = new Date(now.getTime() - 365 * 86400 * 1000);
+            if (lfmPeriod === 'overall') fromDate = new Date(0);
+
+            // 1. Fetch Top Artists & Tracks from DB
+            let topArtists: any[] = await StatsService.getTopArtists(dbUser.id, fromDate, now, 10);
+            let topTracks: any[] = await StatsService.getTopTracks(dbUser.id, fromDate, now, 10);
+
+            if (topArtists.length === 0) {
+                // FALLBACK: Last.fm API
+                [topArtists, topTracks] = await Promise.all([
+                    LastFM.getTopArtists(dbUser.lastfmUsername, lfmPeriod as any, 10, dbUser.lastfmSessionKey),
+                    LastFM.getTopTracks(dbUser.lastfmUsername, lfmPeriod as any, 10, dbUser.lastfmSessionKey)
+                ]);
+            }
 
             if (!topArtists.length && !topTracks.length) {
                 const msg = '😢 You haven\'t listened to enough music in this period for me to judge you.';

@@ -160,6 +160,20 @@ export class ImportService {
         return tracks;
     }
 
+    /**
+     * The "50% Scrobble Rule" — ported from C# FMBot ImportService.IsValidScrobble.
+     * - < 30 seconds played → always rejected
+     * - > 240 seconds (4 minutes) played → always accepted
+     * - Otherwise → only valid if msPlayed > mediaDuration / 2
+     */
+    private static isValidScrobble(msPlayed: number, mediaDurationMs: number): boolean {
+        if (msPlayed < 30000) return false;
+        if (msPlayed > 240000) return true;
+        // If we don't know the track length, accept it (conservative)
+        if (!mediaDurationMs || mediaDurationMs <= 0) return true;
+        return msPlayed > mediaDurationMs / 2;
+    }
+
     private static parseSpotifyJson(data: any[]): ScrobbleImportTrack[] {
         if (!Array.isArray(data)) return [];
         
@@ -168,7 +182,12 @@ export class ImportService {
                 (item.master_metadata_track_name && item.master_metadata_album_artist_name) || 
                 (item.trackName && item.artistName)
             )
-            .filter(item => (item.ms_played || item.msPlayed) >= 30000) // Last.fm 30s rule
+            .filter(item => {
+                const msPlayed = item.ms_played || item.msPlayed || 0;
+                // Extended history has ms_played_reason_end and duration, basic has msPlayed
+                const mediaDuration = item.duration_ms || 0;
+                return this.isValidScrobble(msPlayed, mediaDuration);
+            })
             .map(item => {
                 const artist = item.master_metadata_album_artist_name || item.artistName;
                 const track = item.master_metadata_track_name || item.trackName;
@@ -255,6 +274,15 @@ export class ImportService {
                     }
 
                     if (artist && track && dateStr) {
+                        // Apply the 50% scrobble rule if duration data is available
+                        const msPlayed = parseInt(row['Play Duration Milliseconds'] || row['Play Duration'] || '0', 10);
+                        const mediaDuration = parseInt(row['Media Duration In Milliseconds'] || row['Media Duration'] || '0', 10);
+                        
+                        // If we have play duration data, validate the scrobble
+                        if (msPlayed > 0 && !ImportService.isValidScrobble(msPlayed, mediaDuration)) {
+                            return; // Skip invalid scrobbles
+                        }
+
                         let timestamp: number;
                         if (/^\d{8}$/.test(dateStr)) {
                             // Format: YYYYMMDD
