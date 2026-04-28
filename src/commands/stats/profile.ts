@@ -4,6 +4,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { resolveTargetUser } from '../../utils/userResolver';
 import { ProfileService } from '../../services/bot/ProfileService';
+import { triggerDeltaSync } from '../../services/bot/QueueWorker';
 
 export default class ProfileCommand extends BaseCommand {
     name = 'profile';
@@ -44,6 +45,9 @@ export default class ProfileCommand extends BaseCommand {
             else await interactionOrMessage.channel.send(payload);
             return;
         }
+
+        // Fire & Forget background sync
+        triggerDeltaSync(targetUser.id);
 
         try {
             const payload = await ProfileService.buildProfilePayload(dbUser, invokerDiscordId);

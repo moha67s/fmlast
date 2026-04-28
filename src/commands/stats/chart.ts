@@ -16,6 +16,7 @@ import { TrackResolverService } from '../../services/api/TrackResolverService';
 import { resolveTargetUser } from '../../utils/userResolver';
 import { StatsService } from '../../services/bot/StatsService';
 import { CacheService } from '../../services/bot/CacheService';
+import { triggerDeltaSync } from '../../services/bot/QueueWorker';
 
 // ==================== OPTIONS INTERFACE ====================
 export interface ChartOptions {
@@ -169,6 +170,9 @@ export default class ChartCommand extends BaseCommand {
             else await interactionOrMessage.channel.send(payload);
             return;
         }
+
+        // Fire & Forget background sync
+        triggerDeltaSync(userId);
 
         try {
             const payload = await ChartCommand.createChartPayload(dbUser.id, userId, dbUser.lastfmUsername, dbUser.lastfmSessionKey, gridSize, periodInput, interactionOrMessage.client, DEFAULT_OPTIONS);

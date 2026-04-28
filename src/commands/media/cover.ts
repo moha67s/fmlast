@@ -20,6 +20,7 @@ import { TrackResolverService } from '../../services/api/TrackResolverService';
 import { RateLimitService } from '../../services/bot/RateLimitService';
 import { RenderCacheService } from '../../services/bot/RenderCacheService';
 import { Client as GeniusClient } from "genius-lyrics";
+import { triggerDeltaSync } from "../../services/bot/QueueWorker";
 
 const genius = new GeniusClient(config.GENIUS_ACCESS_TOKEN);
 
@@ -143,6 +144,9 @@ export default class CoverCommand extends BaseCommand {
       }
       targetUsername = dbUser.lastfmUsername;
       sessionKey = dbUser.lastfmSessionKey;
+
+      // Fire & Forget background sync
+      triggerDeltaSync(targetUser.id);
 
       let resolvedData;
       const isManual = !!(trackOpt || artistOpt);

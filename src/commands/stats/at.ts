@@ -4,6 +4,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { LastFM } from '../../services/api/LastFM';
 import { resolveTargetUser } from '../../utils/userResolver';
+import { triggerDeltaSync } from '../../services/bot/QueueWorker';
 
 export default class ArtistTopTracksCommand extends BaseCommand {
     name = 'at';
@@ -44,6 +45,9 @@ export default class ArtistTopTracksCommand extends BaseCommand {
                     }
                 }
             } catch {}
+
+            // Fire & Forget background sync
+            triggerDeltaSync(userId);
             
             if (!artistQuery) {
                 const msg = '❌ Please provide an artist name!';

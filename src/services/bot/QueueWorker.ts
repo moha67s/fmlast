@@ -101,7 +101,9 @@ async function handleIndexing(job: Job<IndexJobData>) {
     let isDelta = _type === 'DELTA_SYNC';
 
     if (isDelta) {
-        fromTimestamp = settings.lastSyncTimestamp ? settings.lastSyncTimestamp + 1 : Math.floor(Date.now() / 1000) - 86400;
+        // Use the exact timestamp of the last scrobble. 
+        // createMany(skipDuplicates: true) will handle the overlap perfectly.
+        fromTimestamp = settings.lastSyncTimestamp || Math.floor(Date.now() / 1000) - 86400;
     }
 
     // Local L1 cache to avoid hitting Redis for items already seen in THIS sync
@@ -119,10 +121,17 @@ async function handleIndexing(job: Job<IndexJobData>) {
         return;
     }
 
-    const totalPages = parseInt(firstPage.meta?.totalPages || '1', 10);
-    if (totalPages === 0 || (!firstPage.tracks && !isDelta)) {
+    const totalPages = parseInt(firstPage.meta?.totalPages || '0', 10);
+    const totalItems = parseInt(firstPage.meta?.total || '0', 10);
+
+    if (totalItems === 0 && !isDelta) {
          console.log(`[Queue] User ${username} has no scrobbles. Skipping.`);
          return;
+    }
+
+    if (totalItems === 0 && isDelta) {
+        // No new scrobbles since last sync, this is normal.
+        return;
     }
 
     if (!isDelta) {
@@ -139,7 +148,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
     const albumCounts = new Map<string, {artistName: string, albumName: string, count: number}>();
     const trackCounts = new Map<string, {artistName: string, trackName: string, count: number}>();
     
-    let maxUtsEncountered = fromTimestamp || 0;
+    let maxUtsEncountered = settings.lastSyncTimestamp || 0;
     let totalPlaysProcessed = 0;
     let pendingPlays: ParsedPlay[] = [];
 

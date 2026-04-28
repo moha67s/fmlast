@@ -5,6 +5,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { StatsService } from '../../services/bot/StatsService';
+import { triggerDeltaSync } from '../../services/bot/QueueWorker';
 
 export default class TopTracksCommand extends BaseCommand {
     name = 'tt';
@@ -39,6 +40,9 @@ export default class TopTracksCommand extends BaseCommand {
         const targetDbUser = userSettings.targetUser;
         const timeSettings = SettingService.getTimePeriod(userSettings.searchValue);
         const { amount } = SettingService.getAmount(timeSettings.searchValue, 10, 100);
+
+        // Fire & Forget background sync
+        triggerDeltaSync(targetDbUser.discordId);
 
         if (isSlash && !interactionOrMessage.deferred) await interactionOrMessage.deferReply();
 
