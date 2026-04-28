@@ -24,6 +24,7 @@ model User {
   userArtists        UserArtist[]
   userTracks         UserTrack[]
   userAlbums         UserAlbum[]
+  userPlays          UserPlay[]
   crowns             Crown[]
   crownHistory       CrownHistory[]
   friends            Friend[]       @relation("UserFriends")
@@ -105,6 +106,22 @@ model UserAlbum {
   @@index([userId])
   @@index([albumName])
   @@map("user_albums")
+}
+
+model UserPlay {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  artistName String   @map("artist_name") @db.Citext
+  trackName  String   @map("track_name") @db.Citext
+  albumName  String?  @map("album_name") @db.Citext
+  timePlayed DateTime @map("time_played")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, timePlayed])
+  @@index([userId])
+  @@index([timePlayed])
+  @@map("user_plays")
 }
 
 model Crown {

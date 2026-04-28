@@ -5,6 +5,7 @@ import { config } from '../config';
 import { initBotProfile } from './services/bot/BotProfile';
 import { PuppeteerService } from './services/external/PuppeteerService';
 import { LoggerService } from './services/bot/LoggerService';
+import { SyncScheduler } from './services/bot/SyncScheduler';
 import { Shoukaku, Connectors } from 'shoukaku';
 import http from 'http';
 import dns from 'dns';
@@ -65,6 +66,9 @@ async function bootstrap() {
 
     // 5. Post-Login Initialization
     await initBotProfile();
+
+    // 6. Start Background Sync Scheduler (every 4 hours)
+    SyncScheduler.start(240);
 
     // 6. Simple Health Check for Railway
     http.createServer((req, res) => {
