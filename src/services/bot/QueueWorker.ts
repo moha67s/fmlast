@@ -86,7 +86,6 @@ async function handleIndexing(job: Job<IndexJobData>) {
         fromTimestamp = settings.lastSyncTimestamp ? settings.lastSyncTimestamp + 1 : Math.floor(Date.now() / 1000) - 86400;
     }
 
-    // 1. Initial Page Fetch
     let firstPage;
     try {
         firstPage = await LastFM.getRecentTracksPaginated(username, 200, 1, sessionKey, !!sessionKey, fromTimestamp);
@@ -101,7 +100,6 @@ async function handleIndexing(job: Job<IndexJobData>) {
          return;
     }
 
-    // 2. Clear Database if FULL_SYNC
     if (!isDelta) {
         console.log(`[Queue] Clearing existing data for ${username} FULL_SYNC...`);
         await prisma.$transaction([
@@ -109,10 +107,9 @@ async function handleIndexing(job: Job<IndexJobData>) {
             prisma.userTrack.deleteMany({ where: { userId: user.id } }),
             prisma.userAlbum.deleteMany({ where: { userId: user.id } }),
             prisma.userPlay.deleteMany({ where: { userId: user.id } }),
-        ]);
+        ], { timeout: 60000 });
     }
 
-    // 3. Batch Processing Variables
     const artistCounts = new Map<string, {name: string, count: number}>();
     const albumCounts = new Map<string, {artistName: string, albumName: string, count: number}>();
     const trackCounts = new Map<string, {artistName: string, trackName: string, count: number}>();
@@ -121,7 +118,6 @@ async function handleIndexing(job: Job<IndexJobData>) {
     let totalPlaysProcessed = 0;
     let pendingPlays: ParsedPlay[] = [];
 
-    // Local helper to flush pending plays to DB
     const flushPlaysToDB = async (plays: ParsedPlay[]) => {
         if (plays.length === 0) return;
         const data = plays.map(p => ({
@@ -134,7 +130,6 @@ async function handleIndexing(job: Job<IndexJobData>) {
         await prisma.userPlay.createMany({ data, skipDuplicates: true });
     };
 
-    // Local helper to process a single page of tracks
     const processPage = (tracks: any[]) => {
         const plays = parseTracksFromAPI(tracks);
         for (const p of plays) {
@@ -159,7 +154,6 @@ async function handleIndexing(job: Job<IndexJobData>) {
         }
     };
 
-    // 4. Loop through pages
     for (let p = 1; p <= totalPages; p++) {
         let pageData;
         let retries = 0;
@@ -167,12 +161,11 @@ async function handleIndexing(job: Job<IndexJobData>) {
             try {
                 if (p === 1) pageData = firstPage;
                 else pageData = await LastFM.getRecentTracksPaginated(username, 200, p, sessionKey, !!sessionKey, fromTimestamp);
-                
                 if (pageData.tracks) processPage(pageData.tracks);
                 break;
             } catch (err: any) {
                 retries++;
-                console.error(`[Queue] Page ${p} failed for ${username} (Retry ${retries}/3): ${err.message}`);
+                console.error(`[Queue] Page ${p} failed for ${username} (Retry ${retries}/3)`);
                 if (retries === 3) break;
                 await new Promise(r => setTimeout(r, 1000));
             }
@@ -183,48 +176,69 @@ async function handleIndexing(job: Job<IndexJobData>) {
             await flushPlaysToDB(pendingPlays);
             pendingPlays = [];
         }
-        
         if (p !== 1) await new Promise(r => setTimeout(r, 150));
     }
 
-    // 5. Commit Aggregates (Final Phase)
     console.log(`[Queue] Committing aggregate stats for ${username}...`);
-    const mode = isDelta ? 'UPDATE' : 'INSERT';
-    await upsertAggregates(user.id, artistCounts, trackCounts, albumCounts, mode);
+    await upsertAggregates(user.id, artistCounts, trackCounts, albumCounts, isDelta);
 
-    // 6. Finalize
     if (maxUtsEncountered > (settings.lastSyncTimestamp || 0)) {
         settings.lastSyncTimestamp = maxUtsEncountered;
         await prisma.user.update({ where: { id: user.id }, data: { settings } });
     }
     
-    console.log(`[Queue] ${_type} complete for ${username}. Total plays processed: ${totalPlaysProcessed}`);
+    console.log(`[Queue] ${_type} complete for ${username}. Total: ${totalPlaysProcessed}`);
     CrownService.reconcileUser(user.id).catch(() => {});
     detectDrift(user.id, username, sessionKey, discordId).catch(() => {});
     backfillTrackDurations(user.id, username, sessionKey).catch(() => {});
 }
 
-async function upsertAggregates(userId: string, artists: Map<string, any>, tracks: Map<string, any>, albums: Map<string, any>, mode: 'INSERT' | 'UPDATE') {
-    const BATCH = 250;
+async function upsertAggregates(userId: string, artists: Map<string, any>, tracks: Map<string, any>, albums: Map<string, any>, isDelta: boolean) {
+    const BATCH_SIZE = 1000;
     
-    const apply = async (list: any[], table: string) => {
-        for (let i = 0; i < list.length; i += BATCH) {
-            const chunk = list.slice(i, i + BATCH);
-            for (const item of chunk) {
-                if (table === 'user_artists') {
-                    await prisma.$executeRaw`INSERT INTO user_artists (id, user_id, artist_name, playcount) VALUES (${'ar_'+Math.random().toString(36).substring(2)}, ${userId}, ${item.name}, ${item.count}) ON CONFLICT (user_id, artist_name) DO UPDATE SET playcount = ${mode === 'UPDATE' ? Prisma.raw('user_artists.playcount + ' + item.count) : item.count}`;
-                } else if (table === 'user_tracks') {
-                    await prisma.$executeRaw`INSERT INTO user_tracks (id, user_id, artist_name, track_name, playcount) VALUES (${'tr_'+Math.random().toString(36).substring(2)}, ${userId}, ${item.artistName}, ${item.trackName}, ${item.count}) ON CONFLICT (user_id, artist_name, track_name) DO UPDATE SET playcount = ${mode === 'UPDATE' ? Prisma.raw('user_tracks.playcount + ' + item.count) : item.count}`;
-                } else if (table === 'user_albums') {
-                    await prisma.$executeRaw`INSERT INTO user_albums (id, user_id, artist_name, album_name, playcount) VALUES (${'al_'+Math.random().toString(36).substring(2)}, ${userId}, ${item.artistName}, ${item.albumName}, ${item.count}) ON CONFLICT (user_id, artist_name, album_name) DO UPDATE SET playcount = ${mode === 'UPDATE' ? Prisma.raw('user_albums.playcount + ' + item.count) : item.count}`;
-                }
-            }
+    if (!isDelta) {
+        // FAST PATH: Use createMany for FULL_SYNC
+        const artistList = Array.from(artists.values()).map(d => ({ userId, artistName: d.name, playcount: d.count }));
+        for (let i = 0; i < artistList.length; i += BATCH_SIZE) {
+            await prisma.userArtist.createMany({ data: artistList.slice(i, i + BATCH_SIZE), skipDuplicates: true });
         }
-    };
+        
+        const trackList = Array.from(tracks.values()).map(d => ({ userId, artistName: d.artistName, trackName: d.trackName, playcount: d.count }));
+        for (let i = 0; i < trackList.length; i += BATCH_SIZE) {
+            await prisma.userTrack.createMany({ data: trackList.slice(i, i + BATCH_SIZE), skipDuplicates: true });
+        }
+        
+        const albumList = Array.from(albums.values()).map(d => ({ userId, artistName: d.artistName, albumName: d.albumName, playcount: d.count }));
+        for (let i = 0; i < albumList.length; i += BATCH_SIZE) {
+            await prisma.userAlbum.createMany({ data: albumList.slice(i, i + BATCH_SIZE), skipDuplicates: true });
+        }
+    } else {
+        // UPDATE PATH: Incremental updates for DELTA_SYNC
+        const UPDATE_BATCH = 100;
+        const artistList = Array.from(artists.values());
+        for (let i = 0; i < artistList.length; i += UPDATE_BATCH) {
+            const chunk = artistList.slice(i, i + UPDATE_BATCH);
+            await prisma.$transaction(chunk.map(d => 
+                prisma.$executeRaw`INSERT INTO user_artists (id, user_id, artist_name, playcount) VALUES (${'ar_'+Math.random().toString(36).substring(2)}, ${userId}, ${d.name}, ${d.count}) ON CONFLICT (user_id, artist_name) DO UPDATE SET playcount = user_artists.playcount + ${d.count}`
+            ));
+        }
+        
+        const trackList = Array.from(tracks.values());
+        for (let i = 0; i < trackList.length; i += UPDATE_BATCH) {
+            const chunk = trackList.slice(i, i + UPDATE_BATCH);
+            await prisma.$transaction(chunk.map(d => 
+                prisma.$executeRaw`INSERT INTO user_tracks (id, user_id, artist_name, track_name, playcount) VALUES (${'tr_'+Math.random().toString(36).substring(2)}, ${userId}, ${d.artistName}, ${d.trackName}, ${d.count}) ON CONFLICT (user_id, artist_name, track_name) DO UPDATE SET playcount = user_tracks.playcount + ${d.count}`
+            ));
+        }
 
-    await apply(Array.from(artists.values()), 'user_artists');
-    await apply(Array.from(tracks.values()), 'user_tracks');
-    await apply(Array.from(albums.values()), 'user_albums');
+        const albumList = Array.from(albums.values());
+        for (let i = 0; i < albumList.length; i += UPDATE_BATCH) {
+            const chunk = albumList.slice(i, i + UPDATE_BATCH);
+            await prisma.$transaction(chunk.map(d => 
+                prisma.$executeRaw`INSERT INTO user_albums (id, user_id, artist_name, album_name, playcount) VALUES (${'al_'+Math.random().toString(36).substring(2)}, ${userId}, ${d.artistName}, ${d.albumName}, ${d.count}) ON CONFLICT (user_id, artist_name, album_name) DO UPDATE SET playcount = user_albums.playcount + ${d.count}`
+            ));
+        }
+    }
 }
 
 async function backfillTrackDurations(userId: string, username: string, sessionKey: string | null) {
@@ -263,17 +277,15 @@ async function handleHistoryImport(job: Job<IndexJobData>) {
     const { jobId, discordId } = job.data;
     const importJob = await prisma.importJob.findUnique({ where: { id: jobId }, include: { user: true } });
     if (!importJob || ['COMPLETED', 'CANCELLED'].includes(importJob.status)) return;
-    const BATCH_LIMIT = 2800;
-    const pendingTracks = await prisma.importTrack.findMany({ where: { jobId, processed: false }, orderBy: { timestamp: 'asc' }, take: BATCH_LIMIT });
+    const pendingTracks = await prisma.importTrack.findMany({ where: { jobId, processed: false }, orderBy: { timestamp: 'asc' }, take: 2800 });
     if (pendingTracks.length === 0) {
         await prisma.importJob.update({ where: { id: jobId }, data: { status: 'COMPLETED' } });
         return;
     }
-    const CHUNK_SIZE = 50;
-    let scrobbledCount = 0;
     const now = Math.floor(Date.now() / 1000);
-    for (let i = 0; i < pendingTracks.length; i += CHUNK_SIZE) {
-        const chunk = pendingTracks.slice(i, i + CHUNK_SIZE);
+    let scrobbledCount = 0;
+    for (let i = 0; i < pendingTracks.length; i += 50) {
+        const chunk = pendingTracks.slice(i, i + 50);
         try {
             await LastFM.scrobbleBatch(chunk.map((t: any, idx: number) => ({ artist: t.artist, track: t.track, album: t.album || undefined, timestamp: importJob.isLegacy ? (now - (pendingTracks.length - (i + idx))) : t.timestamp })), importJob.user.lastfmSessionKey!);
             await prisma.importTrack.updateMany({ where: { id: { in: chunk.map((t: any) => t.id) } }, data: { processed: true } });
@@ -284,13 +296,12 @@ async function handleHistoryImport(job: Job<IndexJobData>) {
         }
     }
     await prisma.importJob.update({ where: { id: jobId }, data: { scrobbledTracks: { increment: scrobbledCount }, lastProcessedAt: new Date(), status: 'PROCESSING' } });
-    const remainingCount = await prisma.importTrack.count({ where: { jobId, processed: false } });
-    if (remainingCount > 0) await indexQueue?.add(`import-next-${jobId}`, job.data, { delay: 24 * 60 * 60 * 1000, removeOnComplete: true });
+    if (await prisma.importTrack.count({ where: { jobId, processed: false } }) > 0) await indexQueue?.add(`import-next-${jobId}`, job.data, { delay: 24 * 60 * 60 * 1000, removeOnComplete: true });
     else await prisma.importJob.update({ where: { id: jobId }, data: { status: 'COMPLETED' } });
 }
 
 if (connection) {
-    const worker = new Worker('user-index', async (job: Job<IndexJobData>) => {
+    new Worker('user-index', async (job: Job<IndexJobData>) => {
         if (job.data.type === 'HISTORY_IMPORT') await handleHistoryImport(job);
         else await handleIndexing(job);
     }, { connection, concurrency: 1 });
