@@ -1,15 +1,15 @@
-// src/commands/lastfm/chart.ts
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
+import { ChartState } from '../../utils/ChartState';
 import { config } from '../../../config';
-import {
-    AttachmentBuilder,
-    ChannelType,
-    TextChannel,
-    ButtonStyle
-} from 'discord.js';
-import axios from 'axios';
+import { 
+    AttachmentBuilder, 
+    ChannelType, 
+    TextChannel, 
+    ButtonStyle, 
+    ComponentType 
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
@@ -37,7 +37,6 @@ export const DEFAULT_OPTIONS: ChartOptions = {
 
 /** Get the unix timestamp range for a custom period like "month-2026-03" or "year-2025" */
 function getCustomPeriodRange(periodInput: string): { from: number; to: number } | null {
-    // month-2024-04 OR 2024-04
     const monthMatch = periodInput.match(/^(?:month-)?(\d{4})-(\d{1,2})$/);
     if (monthMatch) {
         const year = parseInt(monthMatch[1]);
@@ -47,7 +46,6 @@ function getCustomPeriodRange(periodInput: string): { from: number; to: number }
         return { from: Math.floor(from), to: Math.floor(to) };
     }
 
-    // year-2024 OR 2024
     const yearMatch = periodInput.match(/^(?:year-)?(\d{4})$/);
     if (yearMatch) {
         const year = parseInt(yearMatch[1]);
@@ -55,7 +53,6 @@ function getCustomPeriodRange(periodInput: string): { from: number; to: number }
         const to = new Date(year, 11, 31, 23, 59, 59).getTime() / 1000;
         return { from: Math.floor(from), to: Math.floor(to) };
     }
-
     return null;
 }
 
@@ -82,7 +79,7 @@ function matchesReleaseFilter(releaseYear: number | null, filter: string): boole
 
 export default class ChartCommand extends BaseCommand {
     name = 'chart';
-    description = 'Generate a grid chart of your top albums for a time period (exactly like .fmbot)';
+    description = 'Generate a grid chart of your top albums for a time period';
     aliases = ['ch', 'grid'];
 
     slashData = new (require('discord.js').SlashCommandBuilder)()
@@ -133,20 +130,16 @@ export default class ChartCommand extends BaseCommand {
                 const numMatch = arg.match(/(\d+)/);
                 if (numMatch) {
                     const num = parseInt(numMatch[1]);
-                    // Check if it's JUST a grid size (1-9) or a year (4 digits)
                     if (num >= 1 && num <= 9 && arg.length === 1) gridSize = num;
                     else if (arg.includes('x')) {
-                        const [w, h] = arg.split('x').map(n => parseInt(n));
+                        const [w] = arg.split('x').map(n => parseInt(n));
                         if (w >= 1 && w <= 9) gridSize = w;
                     }
                 }
-
-                // Check for custom period formats (YYYY-MM or YYYY)
                 if (getCustomPeriodRange(arg)) {
                     periodInput = arg;
                     continue;
                 }
-
                 const periodMap: Record<string, string> = {
                     day: 'daily', daily: 'daily',
                     week: 'weekly', weekly: 'weekly',
@@ -171,7 +164,6 @@ export default class ChartCommand extends BaseCommand {
             return;
         }
 
-        // Fire & Forget background sync
         triggerDeltaSync(userId);
 
         try {
@@ -190,10 +182,7 @@ export default class ChartCommand extends BaseCommand {
         const cacheKey = `chart:v1:${username}:${gridSize}:${periodInput}:${optionsKey}`;
 
         const cached = await CacheService.get<any>(cacheKey);
-        if (cached) {
-            console.log(`  ${0x26A1} ${'CHART'.padEnd(7)} ${'CACHED'.padEnd(10)} ${username} - ${gridSize}x${gridSize} ${periodInput}`);
-            return cached;
-        }
+        if (cached) return cached;
 
         const needed = gridSize * gridSize;
         const periodInfo = this.getPeriodInfoStatic(periodInput);
@@ -205,51 +194,33 @@ export default class ChartCommand extends BaseCommand {
         let rawAlbums: any[] = [];
         const customRange = getCustomPeriodRange(periodInput);
         
-        // ── NEW INDEXED LOGIC ──
         if (customRange) {
             const dbAlbums = await StatsService.getTopAlbums(dbUserId, new Date(customRange.from * 1000), new Date(customRange.to * 1000), fetchLimit);
-            rawAlbums = dbAlbums.map(a => ({
-                name: a.name,
-                artist: { name: a.artistName },
-                playcount: String(a.playcount)
-            }));
-        } else {
-            const apiPeriod = periodInfo.api;
-            if (apiPeriod === 'daily') {
-                const oneDayAgo = new Date(Date.now() - 86400 * 1000);
-                const dbAlbums = await StatsService.getTopAlbums(dbUserId, oneDayAgo, new Date(), fetchLimit);
-                rawAlbums = dbAlbums.map(a => ({
-                    name: a.name,
-                    artist: { name: a.artistName },
-                    playcount: String(a.playcount)
-                }));
-            }
+            rawAlbums = dbAlbums.map(a => ({ name: a.name, artist: { name: a.artistName }, playcount: String(a.playcount) }));
+        } else if (periodInfo.api === 'daily') {
+            const oneDayAgo = new Date(Date.now() - 86400 * 1000);
+            const dbAlbums = await StatsService.getTopAlbums(dbUserId, oneDayAgo, new Date(), fetchLimit);
+            rawAlbums = dbAlbums.map(a => ({ name: a.name, artist: { name: a.artistName }, playcount: String(a.playcount) }));
         }
 
         if (rawAlbums.length === 0) {
-            // FALLBACK: Last.fm API
             if (customRange) {
                 rawAlbums = await LastFM.getWeeklyAlbumChart(username, customRange.from, customRange.to, fetchLimit, sessionKey);
-            } else {
-                const apiPeriod = periodInfo.api;
-                if (apiPeriod === 'daily') {
-                    const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
-                    const recentTracks = await LastFM.getRecentTracksPaginated(username, 200, 1, sessionKey, false, oneDayAgo);
-                    const albumCounts = new Map<string, any>();
-                    for (const track of recentTracks.tracks) {
-                        const albumName = track.album?.['#text'];
-                        const artistName = track.artist?.name || track.artist?.['#text'];
-                        if (!albumName || !artistName) continue;
-                        const key = `${albumName}|${artistName}`;
-                        if (!albumCounts.has(key)) {
-                            albumCounts.set(key, { name: albumName, artist: { name: artistName }, playcount: 0, image: track.image });
-                        }
-                        albumCounts.get(key).playcount++;
-                    }
-                    rawAlbums = Array.from(albumCounts.values()).sort((a, b) => b.playcount - a.playcount);
-                } else {
-                    rawAlbums = await LastFM.getTopAlbums(username, apiPeriod as any, fetchLimit, sessionKey);
+            } else if (periodInfo.api === 'daily') {
+                const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+                const recentTracks = await LastFM.getRecentTracksPaginated(username, 200, 1, sessionKey, false, oneDayAgo);
+                const albumCounts = new Map<string, any>();
+                for (const track of recentTracks.tracks) {
+                    const albumName = track.album?.['#text'];
+                    const artistName = track.artist?.name || track.artist?.['#text'];
+                    if (!albumName || !artistName) continue;
+                    const key = `${albumName}|${artistName}`;
+                    if (!albumCounts.has(key)) albumCounts.set(key, { name: albumName, artist: { name: artistName }, playcount: 0 });
+                    albumCounts.get(key).playcount++;
                 }
+                rawAlbums = Array.from(albumCounts.values()).sort((a, b) => b.playcount - a.playcount);
+            } else {
+                rawAlbums = await LastFM.getTopAlbums(username, periodInfo.api as any, fetchLimit, sessionKey);
             }
         }
 
@@ -269,14 +240,11 @@ export default class ChartCommand extends BaseCommand {
 
         if (stagingChannelId && client) {
             try {
-                const stagingChannel = await client.channels.fetch(stagingChannelId) as TextChannel | null;
-                if (stagingChannel?.type === ChannelType.GuildText) {
-                    const attachment = new AttachmentBuilder(chartBuffer, { name: `album-chart-${gridSize}x${gridSize}-${displayName}-${username}.webp` });
-                    const stagingMessage = await stagingChannel.send({ files: [attachment] });
-                    cdnUrl = stagingMessage.attachments.first()?.url || null;
-                    // Deleting after 24 hours to keep the CDN link alive for a while
-                    setTimeout(() => stagingMessage.delete().catch(() => { }), 86400000);
-                }
+                const stagingChannel = await client.channels.fetch(stagingChannelId) as TextChannel;
+                const attachment = new AttachmentBuilder(chartBuffer, { name: `album-chart.webp` });
+                const stagingMessage = await stagingChannel.send({ files: [attachment] });
+                cdnUrl = stagingMessage.attachments.first()?.url || null;
+                setTimeout(() => stagingMessage.delete().catch(() => { }), 86400000);
             } catch (e) { console.warn('⚠️ Staging failed:', e); }
         }
 
@@ -286,19 +254,25 @@ export default class ChartCommand extends BaseCommand {
         let albumDescriptions = albums.slice(0, actualNeeded).map((a: any, i: number) => `#${i + 1} ${a.name} by ${a.artist?.name || a.artist?.['#text'] || 'Unknown'}`).join(', ');
         if (albumDescriptions.length > 1024) albumDescriptions = albumDescriptions.substring(0, 1021) + '...';
 
-        const si = options.skipNoImage ? '1' : '0';
-        const sfw = options.sfwOnly ? '1' : '0';
-        const hs = options.hideSingles ? '1' : '0';
-        const rf = options.releaseFilter || '_';
-
+        const stateStr = ChartState.encode({
+            userId: discordId,
+            size: gridSize,
+            period: periodInput,
+            skipNoImage: options.skipNoImage,
+            sfwOnly: options.sfwOnly,
+            hideSingles: options.hideSingles,
+            releaseFilter: options.releaseFilter,
+            username: username
+        });
+        
         const editButton = {
-            type: 2,
-            custom_id: `chart-edit:${discordId}:${gridSize}:${periodInput}:${si}:${sfw}:${hs}:${rf}:${username}`,
+            type: ComponentType.Button,
+            custom_id: `chart-edit:${stateStr}`,
             style: ButtonStyle.Secondary,
             label: 'Edit'
         };
 
-        const userDb = await prisma.user.findUnique({ where: { id: dbUserId } });
+        const userDb = await prisma.user.findUnique({ where: { discordId: discordId } });
         const userColorHex = (userDb?.settings as any)?.embedColor || '#d51007';
         const userColorInt = parseInt(userColorHex.replace('#', ''), 16);
 
@@ -310,7 +284,7 @@ export default class ChartCommand extends BaseCommand {
             .addAction(`-# ${username} has ${userInfo.playcount?.toLocaleString() || '0'} scrobbles`, editButton)
             .build();
 
-        await CacheService.set(cacheKey, payload, 600); // Cache chart result for 10 minutes
+        await CacheService.set(cacheKey, payload, 600);
         return payload;
     }
 
@@ -319,14 +293,7 @@ export default class ChartCommand extends BaseCommand {
             const artistName = album?.artist?.name || album?.artist?.['#text'] || '';
             try {
                 const res = await TrackResolverService.resolveAlbum(artistName, album.name);
-                // Note: resolveAlbum needs to be updated to return albumType and isExplicit if we want full parity.
-                // For now, it returns releaseYear.
-                return { 
-                    album, 
-                    albumType: (res as any).albumType || null, 
-                    isExplicit: (res as any).isExplicit || false, 
-                    releaseYear: res.releaseYear 
-                };
+                return { album, albumType: (res as any).albumType || null, isExplicit: (res as any).isExplicit || false, releaseYear: res.releaseYear };
             } catch { return { album, albumType: null, isExplicit: false, releaseYear: null }; }
         });
         const albumsWithMeta = await Promise.all(metadataPromises);
@@ -347,8 +314,6 @@ export default class ChartCommand extends BaseCommand {
             overall: { display: 'All-Time', api: 'overall', preset: 'ALL' }
         };
         if (map[periodInput]) return map[periodInput];
-
-        // Custom Month: YYYY-MM or month-YYYY-MM
         const monthMatch = periodInput.match(/^(?:month-)?(\d{4})-(\d{1,2})$/);
         if (monthMatch) {
             const year = parseInt(monthMatch[1]);
@@ -356,12 +321,8 @@ export default class ChartCommand extends BaseCommand {
             const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
             return { display: `${monthNames[month]} ${year}`, api: 'custom', preset: 'ALL' };
         }
-
-        // Custom Year: YYYY or year-YYYY
         const yearMatch = periodInput.match(/^(?:year-)?(\d{4})$/);
-        if (yearMatch) {
-            return { display: yearMatch[1], api: 'custom', preset: 'ALL' };
-        }
+        if (yearMatch) return { display: yearMatch[1], api: 'custom', preset: 'ALL' };
         return map.weekly;
     }
 
@@ -371,49 +332,28 @@ export default class ChartCommand extends BaseCommand {
         const needed = gridSize * gridSize;
         const width = gridSize * cellSize + padding * (gridSize + 1);
         const height = gridSize * cellSize + padding * (gridSize + 1);
-
         const templateData: any = { width, height, gridSize, albums: [] };
-        
-        // process in batches of 3 to avoid slamming APIs and hitting 429s
         const resolvedAlbums: any[] = [];
         const CHUNK_SIZE = 3;
         const albumSlice = albums.slice(0, needed);
-        
         for (let i = 0; i < albumSlice.length; i += CHUNK_SIZE) {
             const chunk = albumSlice.slice(i, i + CHUNK_SIZE);
             const chunkResults = await Promise.all(chunk.map(async (album, index) => {
                 const globalIndex = i + index;
                 const artistName = album?.artist?.name || album?.artist?.['#text'] || '';
-                
-                // 1. Try resolving via external APIs (Album Search)
                 let res = await TrackResolverService.resolveAlbum(artistName, album.name).catch(() => null);
-                
-                // 2. If album search failed, try a loose track search as a last-resort fallback
-                // (Often albums on LFM are actually singles, and track search is more robust)
                 if (!res?.artworkUrl) {
                     const trackRes = await TrackResolverService.resolve(artistName, album.name).catch(() => null);
-                    if (trackRes?.artworkUrl) {
-                        res = { ...res, artworkUrl: trackRes.artworkUrl } as any;
-                    }
+                    if (trackRes?.artworkUrl) res = { ...res, artworkUrl: trackRes.artworkUrl } as any;
                 }
-
                 const fallbackUrl = album?.image?.find((img: any) => img.size === 'extralarge' || img.size === 'mega')?.['#text'] || album?.image?.[0]?.['#text'];
                 const imgUrl = res?.artworkUrl || fallbackUrl;
-                
                 if (!imgUrl && skipNoImage) return null;
-                
-                return {
-                    rank: globalIndex + 1,
-                    name: album.name,
-                    artist: artistName,
-                    imageUrl: imgUrl
-                };
+                return { rank: globalIndex + 1, name: album.name, artist: artistName, imageUrl: imgUrl };
             }));
             resolvedAlbums.push(...chunkResults.filter(a => a !== null));
         }
-
         templateData.albums = resolvedAlbums;
-        
         return await PuppeteerService.render('chart_grid', templateData, { width, height });
     }
 }

@@ -1,7 +1,12 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { Discogs } from '../../services/api/Discogs';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
 export default class DiscogsCommand extends BaseCommand {
@@ -140,9 +145,9 @@ export default class DiscogsCommand extends BaseCommand {
         const builder = new ComponentsV2()
             .addThumbnail(userAvatar, `### 💿 ${username}'s Vinyl Collection\n${trackLines}\n-# Total records: ${total}`)
             .addRow([
-                { type: 2, style: 2, label: '⬅️', custom_id: `discogs-page:prev:1:${discordId}:${username}:collection`, disabled: true },
-                { type: 2, style: 2, label: `1 / ${totalPages}`, custom_id: 'dummy', disabled: true },
-                { type: 2, style: 2, label: '➡️', custom_id: `discogs-page:next:1:${discordId}:${username}:collection`, disabled: totalPages <= 1 }
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '⬅️', custom_id: `discogs-page:prev:1:${discordId}:${username}:collection`, disabled: true },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: `1 / ${totalPages}`, custom_id: 'dummy', disabled: true },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '➡️', custom_id: `discogs-page:next:1:${discordId}:${username}:collection`, disabled: totalPages <= 1 }
             ]);
 
         if (isSlash) await interactionOrMessage.editReply(builder.build());
@@ -179,9 +184,9 @@ export default class DiscogsCommand extends BaseCommand {
             .setAccent(0xff0000)
             .addThumbnail(userAvatar, `### ❤️ ${username}'s Vinyl Wantlist\n${trackLines}\n-# Total wanted: ${total}`)
             .addRow([
-                { type: 2, style: 2, label: '⬅️', custom_id: `discogs-page:prev:1:${discordId}:${username}:wantlist`, disabled: true },
-                { type: 2, style: 2, label: `1 / ${totalPages}`, custom_id: 'dummy', disabled: true },
-                { type: 2, style: 2, label: '➡️', custom_id: `discogs-page:next:1:${discordId}:${username}:wantlist`, disabled: totalPages <= 1 }
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '⬅️', custom_id: `discogs-page:prev:1:${discordId}:${username}:wantlist`, disabled: true },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: `1 / ${totalPages}`, custom_id: 'dummy', disabled: true },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '➡️', custom_id: `discogs-page:next:1:${discordId}:${username}:wantlist`, disabled: totalPages <= 1 }
             ]);
 
         if (isSlash) await interactionOrMessage.editReply(builder.build());

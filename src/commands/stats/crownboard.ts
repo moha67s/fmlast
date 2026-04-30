@@ -1,6 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { Prisma } from '@prisma/client';
 import { SettingService } from '../../services/bot/SettingService';
@@ -76,10 +81,10 @@ export default class CrownboardCommand extends BaseCommand {
 
                 if (totalPages > 1) {
                     builder.addRow([
-                        { type: 2, style: 2, custom_id: 'cb_first', emoji: { id: '883825508633182208' }, disabled: page === 1 },
-                        { type: 2, style: 2, custom_id: 'cb_prev', emoji: { id: '883825508507336704' }, disabled: page === 1 },
-                        { type: 2, style: 2, custom_id: 'cb_next', emoji: { id: '883825508087922739' }, disabled: page === totalPages },
-                        { type: 2, style: 2, custom_id: 'cb_last', emoji: { id: '883825508482183258' }, disabled: page === totalPages }
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'cb_first', emoji: { id: '883825508633182208' }, disabled: page === 1 },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'cb_prev', emoji: { id: '883825508507336704' }, disabled: page === 1 },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'cb_next', emoji: { id: '883825508087922739' }, disabled: page === totalPages },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'cb_last', emoji: { id: '883825508482183258' }, disabled: page === totalPages }
                     ]);
                 }
 

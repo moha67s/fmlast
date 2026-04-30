@@ -1,7 +1,7 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel } from 'discord.js';
+import { SlashCommandBuilder, TextChannel, ComponentType, ButtonStyle } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { resolveTargetUser } from '../../utils/userResolver';
 import { Spotify } from '../../services/api/Spotify';

@@ -1,6 +1,6 @@
 import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
-import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ChannelType } from 'discord.js';
+import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ChannelType, ComponentType, ButtonStyle } from 'discord.js';
 import { Spotify } from '../../services/api/Spotify';
 import { AppleMusic } from '../../services/api/AppleMusic';
 import { Deezer } from '../../services/api/Deezer';

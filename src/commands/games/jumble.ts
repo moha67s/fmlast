@@ -1,10 +1,15 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { Spotify } from '../../services/api/Spotify';
 import { AppleMusic } from '../../services/api/AppleMusic';
 import { Deezer } from '../../services/api/Deezer';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
@@ -151,7 +156,7 @@ export default class JumbleCommand extends BaseCommand {
                     .setAccent(0x5865F2)
                     .addText(startContent)
                     .addAction("-# Jumble Game", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'start_jumble',
                         label: 'Start Game',
                         emoji: { name: '🧩' },
@@ -299,7 +304,7 @@ export default class JumbleCommand extends BaseCommand {
                     ? `🎉 **CORRECT!** Congratulations **${winner.username}**!\nIt was indeed **${targetName}**.` 
                     : `⏰ **Time is up!**\nThe correct answer was: **${targetName}**`)
                 .addAction("-# Challenge yourself?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'jumble_play_again',
                     label: 'Play Again',
                     emoji: { name: '🔄' },

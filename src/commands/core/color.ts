@@ -1,6 +1,10 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, ComponentType } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 
@@ -92,7 +96,7 @@ export default class ColorCommand extends BaseCommand {
             .addText('## 🎨 Theme Customization\nSelect a premium color from the dropdown below to customize your embeds. You can also type \`.color #HEX\` for a custom hex code.');
         
         builder.addRow([{
-            type: 3,
+            type: ComponentType.StringSelect,
             custom_id: 'color_select',
             placeholder: 'Pick a theme color...',
             options: PREMIUM_COLORS.map(c => ({

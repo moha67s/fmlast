@@ -1,7 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
@@ -283,8 +287,8 @@ export default class ArtistCommand extends BaseCommand {
                 const link = artistLinks.find((l: any) => l.type === linkType);
                 if (link) {
                     linkButtons.push({
-                        type: 2,
-                        style: 5,
+                        type: ComponentType.Button,
+                        style: ButtonStyle.Link,
                         url: link.url,
                         emoji: linkEmojis[linkType] || { name: '🔗' },
                     });

@@ -1,8 +1,15 @@
-import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { QueueManager, GuildQueue } from './QueueManager';
+import {
+  ComponentsV2 } from '../../utils/ComponentsV2';
+import { QueueManager,
+  GuildQueue } from './QueueManager';
 import { YoutubeResult } from '../api/Youtube';
-import { createProgressBar, formatDuration } from '../../utils/formatDuration';
-import { Message, TextChannel } from 'discord.js';
+import { createProgressBar,
+  formatDuration } from '../../utils/formatDuration';
+import { Message,
+  TextChannel,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 
 export class MusicUIController {
 
@@ -123,28 +130,28 @@ export class MusicUIController {
 
         // ROW 1: Playback Controls
         builder.addRow([
-            { type: 2, style: 2, label: '', emoji: isPaused ? '▶️' : '⏸️', custom_id: isPaused ? `mp-resume:${guildId}` : `mp-pause:${guildId}` },
-            { type: 2, style: 2, label: '', emoji: '⏭️', custom_id: `mp-skip:${guildId}` },
-            { type: 2, style: 2, label: '', emoji: repeatEmojis[repeatMode] || '🔁', custom_id: `mp-repeat:${guildId}` },
-            { type: 2, style: 2, label: '', emoji: '🔊', custom_id: `mp-volume:${guildId}` },
-            { type: 2, style: 4, label: '', emoji: '🛑', custom_id: `mp-stop:${guildId}` }
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: isPaused ? '▶️' : '⏸️', custom_id: isPaused ? `mp-resume:${guildId}` : `mp-pause:${guildId}` },
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: '⏭️', custom_id: `mp-skip:${guildId}` },
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: repeatEmojis[repeatMode] || '🔁', custom_id: `mp-repeat:${guildId}` },
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: '🔊', custom_id: `mp-volume:${guildId}` },
+            { type: ComponentType.Button, style: ButtonStyle.Danger, label: '', emoji: '🛑', custom_id: `mp-stop:${guildId}` }
         ]);
 
         // ROW 2: Library & Info
         const row2: any[] = [
-            { type: 2, style: 2, label: '', emoji: '🔀', custom_id: `mp-shuffle:${guildId}` },
-            { type: 2, style: 2, label: '', emoji: '📄', custom_id: `mp-queue:${guildId}` },
-            { type: 2, style: 2, label: '', emoji: 'ℹ️', custom_id: `mp-trackinfo:${guildId}` },
-            { type: 2, style: queue?.autoplay ? 3 : 2, label: '', emoji: '🤖', custom_id: `mp-autoplay:${guildId}` }
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: '🔀', custom_id: `mp-shuffle:${guildId}` },
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: '📄', custom_id: `mp-queue:${guildId}` },
+            { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '', emoji: 'ℹ️', custom_id: `mp-trackinfo:${guildId}` },
+            { type: ComponentType.Button, style: queue?.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary, label: '', emoji: '🤖', custom_id: `mp-autoplay:${guildId}` }
         ];
         if (queue?.hasLyrics) {
-            row2.push({ type: 2, style: 1, label: '', emoji: '🎤', custom_id: `mp-lyrics:${guildId}` });
+            row2.push({ type: ComponentType.Button, style: ButtonStyle.Primary, label: '', emoji: '🎤', custom_id: `mp-lyrics:${guildId}` });
         }
         builder.addRow(row2);
 
         // ROW 3: Effects Select Menu
         builder.addRow([{
-            type: 3,
+            type: ComponentType.StringSelect,
             custom_id: `mp-filter-select:${guildId}`,
             placeholder: '✨ Apply Audio Filters...',
             options: [

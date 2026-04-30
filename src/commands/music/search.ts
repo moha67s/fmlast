@@ -1,6 +1,13 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { SlashCommandBuilder, ChatInputCommandInteraction, Message, ComponentType, TextChannel } from 'discord.js';
+import { SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  Message,
+  ComponentType,
+  TextChannel,
+  ButtonStyle
+} from "discord.js";
 import { Youtube } from '../../services/api/Youtube';
 import { MusicPlayer } from '../../services/music/MusicPlayer';
 import { QueueManager } from '../../services/music/QueueManager';
@@ -70,7 +77,7 @@ export default class SearchCommand extends BaseCommand {
                 .addText(`Select a song from the menu below to add it to the queue.`)
                 .addRow([
                     {
-                        type: 3, // StringSelect
+                        type: ComponentType.StringSelect, // StringSelect
                         customId: 'search_select',
                         placeholder: 'Choose a song...',
                         options

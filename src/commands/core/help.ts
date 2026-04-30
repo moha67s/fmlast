@@ -1,6 +1,10 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 
 export default class HelpCommand extends BaseCommand {
     name = 'help';
@@ -129,7 +133,7 @@ export default class HelpCommand extends BaseCommand {
 
             builder.addRow([
                 {
-                    type: 3,
+                    type: ComponentType.StringSelect,
                     customId: 'help_category_picker',
                     placeholder: 'Choose a category to view commands',
                     options
@@ -173,8 +177,8 @@ export default class HelpCommand extends BaseCommand {
 
                 catBuilder.addRow([
                     {
-                        type: 2,
-                        style: 2,
+                        type: ComponentType.Button,
+                        style: ButtonStyle.Secondary,
                         customId: 'help_back_to_main',
                         label: 'Back',
                         emoji: { name: '⬅️' }

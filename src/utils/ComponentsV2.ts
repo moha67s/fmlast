@@ -1,10 +1,12 @@
+import { ComponentType, ButtonStyle, MessageFlags } from 'discord.js';
+
 /**
  * Discord Components v2 (Type 17) Builder
  * Provides a clean interface for creating 'Message Accessory' containers (cards).
  */
 export class ComponentsV2 {
     private payload: any = {
-        type: 17,
+        type: ComponentType.Container,
         spoiler: false,
         components: []
     };
@@ -32,19 +34,19 @@ export class ComponentsV2 {
     setThumbnail(url: string): this {
         // Find the first text component (Type 9 with Type 10) or just push a new one
         const last = this.payload.components[this.payload.components.length - 1];
-        if (last && last.type === 10) {
+        if (last && last.type === ComponentType.TextDisplay) {
             this.payload.components[this.payload.components.length - 1] = {
-                type: 9,
+                type: ComponentType.Section,
                 components: [last],
-                accessory: { type: 11, media: { url } }
+                accessory: { type: ComponentType.Thumbnail, media: { url } }
             };
-        } else if (last && last.type === 9) {
-            last.accessory = { type: 11, media: { url } };
+        } else if (last && last.type === ComponentType.Section) {
+            last.accessory = { type: ComponentType.Thumbnail, media: { url } };
         } else {
             this.payload.components.push({
-                type: 9,
-                components: [{ type: 10, content: '\u200B' }],
-                accessory: { type: 11, media: { url } }
+                type: ComponentType.Section,
+                components: [{ type: ComponentType.TextDisplay, content: '\u200B' }],
+                accessory: { type: ComponentType.Thumbnail, media: { url } }
             });
         }
         return this;
@@ -60,7 +62,7 @@ export class ComponentsV2 {
         }
 
         this.payload.components.push({
-            type: 12,
+            type: ComponentType.MediaGallery,
             items: [item]
         });
         return this;
@@ -74,7 +76,7 @@ export class ComponentsV2 {
     /** Add a horizontal separator line */
     addSeparator(): this {
         this.payload.components.push({
-            type: 14,
+            type: ComponentType.Separator,
             spacing: 1,
             divider: true
         });
@@ -87,10 +89,10 @@ export class ComponentsV2 {
     addThumbnail(url: string, content?: string): this {
         if (content) {
             this.payload.components.push({
-                type: 9,
-                components: [{ type: 10, content }],
+                type: ComponentType.Section,
+                components: [{ type: ComponentType.TextDisplay, content }],
                 accessory: {
-                    type: 11,
+                    type: ComponentType.Thumbnail,
                     media: { url }
                 }
             });
@@ -98,17 +100,17 @@ export class ComponentsV2 {
             // If no content, we use the last text block if available, 
             // or just add it as a new section with empty space
             const last = this.payload.components[this.payload.components.length - 1];
-            if (last && last.type === 10) {
+            if (last && last.type === ComponentType.TextDisplay) {
                 this.payload.components[this.payload.components.length - 1] = {
-                    type: 9,
+                    type: ComponentType.Section,
                     components: [last],
-                    accessory: { type: 11, media: { url } }
+                    accessory: { type: ComponentType.Thumbnail, media: { url } }
                 };
             } else {
                 this.payload.components.push({
-                    type: 9,
-                    components: [{ type: 10, content: '\u200B' }],
-                    accessory: { type: 11, media: { url } }
+                    type: ComponentType.Section,
+                    components: [{ type: ComponentType.TextDisplay, content: '\u200B' }],
+                    accessory: { type: ComponentType.Thumbnail, media: { url } }
                 });
             }
         }
@@ -118,7 +120,7 @@ export class ComponentsV2 {
     /** Add small dimmed text at the bottom */
     addFooter(text: string): this {
         this.payload.components.push({
-            type: 10,
+            type: ComponentType.TextDisplay,
             content: `-# *${text}*`
         });
         return this;
@@ -127,7 +129,7 @@ export class ComponentsV2 {
     /** Add a standard text block to the container */
     addText(content: string): this {
         this.payload.components.push({
-            type: 10,
+            type: ComponentType.TextDisplay,
             content
         });
         return this;
@@ -140,12 +142,12 @@ export class ComponentsV2 {
      */
     addAction(content: string, accessory: any): this {
         this.payload.components.push({
-            type: 9,
+            type: ComponentType.Section,
             components: [{
-                type: 10,
+                type: ComponentType.TextDisplay,
                 content
             }],
-            accessory
+            accessory: typeof accessory.toJSON === 'function' ? accessory.toJSON() : accessory
         });
         return this;
     }
@@ -153,8 +155,8 @@ export class ComponentsV2 {
     /** Add a simple link button as an accessory to a section */
     addLinkButton(content: string, label: string, url: string, emoji?: { name: string; id?: string }): this {
         return this.addAction(content, {
-            type: 2,
-            style: 5, // Link Style
+            type: ComponentType.Button,
+            style: ButtonStyle.Link,
             label,
             url,
             emoji
@@ -164,8 +166,8 @@ export class ComponentsV2 {
     /** Add a standard Action Row (Type 1) containing multiple components */
     addRow(components: any[]): this {
         this.payload.components.push({
-            type: 1,
-            components
+            type: ComponentType.ActionRow,
+            components: components.map(c => typeof c.toJSON === 'function' ? c.toJSON() : c)
         });
         return this;
     }
@@ -174,10 +176,11 @@ export class ComponentsV2 {
      * Build the final payload compatible with channel.send() or interaction.reply()
      * @param flags Flag 32768 is usually required for stable v2 rendering
      */
-    build(flags = 32768): any {
+    build(flags = MessageFlags.IsComponentsV2): any {
         return {
             components: [this.payload],
             flags
         };
     }
 }
+

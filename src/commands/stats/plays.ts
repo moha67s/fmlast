@@ -1,6 +1,6 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, ComponentType, ButtonStyle } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { triggerDeltaSync } from '../../services/bot/QueueWorker';

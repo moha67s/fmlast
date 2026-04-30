@@ -30,10 +30,6 @@ export async function loadCommands(client: Client) {
                     }
                 }
 
-                // Register slash command if it has slashData
-                if (command.slashData) {
-                    client.application?.commands.create(command.slashData.toJSON());
-                }
             } catch (err) {
                 console.error(`Failed to load command ${file}:`, err);
             }

@@ -1,10 +1,15 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { AppleMusic } from '../../services/api/AppleMusic';
 import { Deezer } from '../../services/api/Deezer';
 import { Spotify } from '../../services/api/Spotify';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { downloadAndConvert } from '../../utils/downloader';
 import sendVoice from '../../utils/sendVoice';
@@ -109,7 +114,7 @@ export default class BlindGuessCommand extends BaseCommand {
                     .setAccent(0x5865F2) // Blurple
                     .addText(startContent)
                     .addAction("-# Snippet Guess Game", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'start_blindguess',
                         label: 'Play Snippet',
                         emoji: { name: '▶️' },
@@ -242,7 +247,7 @@ export default class BlindGuessCommand extends BaseCommand {
                     ? `🎉 **CORRECT!** Congratulations **${winner.username}**!\nIt was **${targetName}** by **${targetArtist}**.` 
                     : `⏰ **Time is up!**\nThe track was: **${targetName}** by **${targetArtist}**`)
                 .addAction("-# Test your knowledge?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'blindguess_play_again',
                     label: 'Play Again',
                     emoji: { name: '🔄' },

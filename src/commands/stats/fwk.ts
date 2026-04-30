@@ -2,7 +2,7 @@ import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { TextChannel } from 'discord.js';
+import { TextChannel, ComponentType, ButtonStyle } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { triggerDeltaSync } from '../../services/bot/QueueWorker';
 import { FriendService } from '../../services/bot/FriendService';

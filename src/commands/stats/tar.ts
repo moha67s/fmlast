@@ -1,7 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService, TimePeriod } from '../../services/bot/SettingService';
 import { StatsService } from '../../services/bot/StatsService';
@@ -15,19 +19,7 @@ export default class TopArtistsCommand extends BaseCommand {
     description = 'View your top artists for a time period';
     aliases = ['topartists'];
 
-    slashData = new SlashCommandBuilder()
-        .setName('tar')
-        .setDescription('View top artists for a time period')
-        .addStringOption((opt: any) =>
-            opt.setName('query')
-                .setDescription('Time period (e.g. 1m, 2023) or user mention')
-                .setRequired(false)
-        )
-        .addBooleanOption((opt: any) => 
-            opt.setName('billboard')
-                .setDescription('Use billboard formatting mode')
-                .setRequired(false)
-        );
+    // slashData removed to stay under Discord's 100 global command limit
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
         const query = isSlash 
@@ -127,8 +119,8 @@ export default class TopArtistsCommand extends BaseCommand {
 
                 if (totalPages > 1) {
                     builder.addRow([
-                        { type: 2, style: 2, custom_id: 'paginator_prev', emoji: { name: '◀️' }, disabled: page === 1 },
-                        { type: 2, style: 2, custom_id: 'paginator_next', emoji: { name: '▶️' }, disabled: page === totalPages }
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'paginator_prev', emoji: { name: '◀️' }, disabled: page === 1 },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'paginator_next', emoji: { name: '▶️' }, disabled: page === totalPages }
                     ]);
                 }
 

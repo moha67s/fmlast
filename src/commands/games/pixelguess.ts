@@ -1,9 +1,17 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { Spotify } from '../../services/api/Spotify';
 import { MusicBrainz } from '../../services/api/MusicBrainz';
 import { prisma } from '../../database/client';
-import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType, ActionRowBuilder, ButtonBuilder } from 'discord.js';
+import { AttachmentBuilder,
+  SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType,
+  ActionRowBuilder,
+  ButtonBuilder
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
@@ -105,7 +113,7 @@ export default class PixelGuessCommand extends BaseCommand {
                     .setAccent(0x5865F2)
                     .addText(startContent)
                     .addAction("-# Album Guessing Game", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'start_pixelguess',
                         label: 'Start Game',
                         emoji: { name: '🎮' },
@@ -170,7 +178,7 @@ export default class PixelGuessCommand extends BaseCommand {
 
             if (hintsUsed < 3) {
                 payload.addAction("-# Need a clue?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'pg_hint',
                     label: `Hint (${3 - hintsUsed} left)`,
                     emoji: { name: '💡' },
@@ -229,7 +237,7 @@ export default class PixelGuessCommand extends BaseCommand {
                     .addText(`🎉 **CORRECT!** Congratulations **${winner.displayName}**!\nThe album was **${data.albumName}** by **${data.artistName}**.`)
                     .addFullImage(data.artworkUrl)
                     .addAction("-# Another round?", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'pg_play_again',
                         label: 'Play Again',
                         emoji: { name: '🔄' },
@@ -246,7 +254,7 @@ export default class PixelGuessCommand extends BaseCommand {
                     .addText(`⏰ **Time is up!**\nThe correct answer was **${data.albumName}** by **${data.artistName}**.`)
                     .addFullImage(data.artworkUrl)
                     .addAction("-# Try again?", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'pg_play_again',
                         label: 'Play Again',
                         emoji: { name: '🔄' },

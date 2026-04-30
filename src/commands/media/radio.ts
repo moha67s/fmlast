@@ -1,8 +1,15 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { Spotify } from '../../services/api/Spotify';
 import { prisma } from '../../database/client';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, TextChannel } from 'discord.js';
+import { ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  SlashCommandBuilder,
+  TextChannel,
+  ComponentType
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
 // ── Manual artist-level overrides ─────────────────────────────────────────
@@ -134,8 +141,8 @@ export default class RadioCommand extends BaseCommand {
                     const r = recs[i];
                     tracksText += `${i + 1}. **${r.name}** by ${r.artistName}\n`;
                     buttons.push({
-                        type: 2,
-                        style: 2, // Secondary
+                        type: ComponentType.Button,
+                        style: ButtonStyle.Secondary, // Secondary
                         label: `${i + 1}`,
                         custom_id: `radio-pre:${r.artistName.substring(0, 35)}|${r.name.substring(0, 50)}`
                     });
@@ -144,8 +151,8 @@ export default class RadioCommand extends BaseCommand {
                 builder.addText(tracksText.trim());
                 builder.addRow(buttons);
                 builder.addRow([{
-                    type: 2,
-                    style: 1, // Primary
+                    type: ComponentType.Button,
+                    style: ButtonStyle.Primary, // Primary
                     label: '🔀 Reroll Station',
                     custom_id: 'radio-reroll'
                 }]);

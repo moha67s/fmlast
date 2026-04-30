@@ -10,7 +10,7 @@ export default class RemoveCommand extends BaseCommand {
     aliases = ['logout', 'unlink'];
 
     slashData = new SlashCommandBuilder()
-        .setName('remove')
+        .setName('forgetme')
         .setDescription('Delete your account data and disconnect Last.fm');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {

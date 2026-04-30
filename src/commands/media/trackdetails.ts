@@ -1,9 +1,15 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { Deezer } from '../../services/api/Deezer';
 import { AppleMusic } from '../../services/api/AppleMusic';
 import { prisma } from '../../database/client';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, TextChannel } from 'discord.js';
+import { ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  TextChannel
+} from "discord.js";
 import { getAudioSignalAndSr, previewMap } from '../../utils/downloader';
 
 const esPkg: any = require("essentia.js");

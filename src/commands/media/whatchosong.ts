@@ -2,6 +2,8 @@ import {
   SlashCommandBuilder,
   TextChannel,
   AttachmentBuilder,
+  ComponentType,
+  ButtonStyle
 } from "discord.js";
 import { BaseCommand } from "../../structures/BaseCommand";
 import { LastFM } from "../../services/api/LastFM";
@@ -179,11 +181,11 @@ export default class WhatchosongCommand extends BaseCommand {
       const links = resolved.links;
  
       const platformButtons: any[] = [];
-      if (links.spotify) platformButtons.push({ type: 2, style: 5, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
-      if (links.apple) platformButtons.push({ type: 2, style: 5, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
-      if (links.deezer) platformButtons.push({ type: 2, style: 5, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
-      if (trackUrlLastfm) platformButtons.push({ type: 2, style: 5, url: trackUrlLastfm, emoji: { id: "1496297104434270290", name: "las" } });
-      if (links.youtube) platformButtons.push({ type: 2, style: 5, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
+      if (links.spotify) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
+      if (links.apple) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
+      if (links.deezer) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
+      if (trackUrlLastfm) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: trackUrlLastfm, emoji: { id: "1496297104434270290", name: "las" } });
+      if (links.youtube) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
 
       const geniusId = bestMatch.id;
       const safeArtist = artistName.substring(0, 35);
@@ -200,14 +202,14 @@ export default class WhatchosongCommand extends BaseCommand {
 
       payload.addRow([
           {
-            type: 2,
-            style: 2, // Secondary
+            type: ComponentType.Button,
+            style: ButtonStyle.Secondary, // Secondary
             custom_id: `wh-lyrics:${geniusId}|${safeArtist}|${safeTrack}`,
             label: "Lyrics Card"
           },
           {
-            type: 2,
-            style: 2, // Secondary
+            type: ComponentType.Button,
+            style: ButtonStyle.Secondary, // Secondary
             custom_id: `wh-full-lyrics:${geniusId}|${safeArtist}|${safeTrack}`,
             label: "Full Lyrics"
           }

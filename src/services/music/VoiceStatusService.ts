@@ -1,4 +1,4 @@
-import { Client } from 'discord.js';
+import { Client, ComponentType, ButtonStyle, ActivityType } from "discord.js";
 
 export class VoiceStatusService {
     /**
@@ -39,7 +39,7 @@ export class VoiceStatusService {
             client.user.setPresence({
                 activities: [{
                     name: trackTitle,
-                    type: 2 // Listening
+                    type: ActivityType.Listening // Listening
                 }],
                 status: 'online'
             });
@@ -48,7 +48,7 @@ export class VoiceStatusService {
             client.user.setPresence({
                 activities: [{
                     name: 'I AM THE MUSIC',
-                    type: 2
+                    type: ActivityType.Listening
                 }],
                 status: 'online'
             });

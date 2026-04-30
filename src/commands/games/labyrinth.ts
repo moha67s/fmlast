@@ -1,8 +1,14 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { Spotify } from '../../services/api/Spotify';
 import { prisma } from '../../database/client';
-import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType } from 'discord.js';
+import { AttachmentBuilder,
+  SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
@@ -93,7 +99,7 @@ export default class LabyrinthCommand extends BaseCommand {
                     .setAccent(0x5865F2)
                     .addText(`### 🎤 LYRIC LABYRINTH\nReady to guess a song from <@${discordId}>'s universe?\n**I'll show you a cinematic lyric card—you identify the track!**`)
                     .addAction("-# Objective: Guess the Track Name", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'start_labyrinth',
                         label: 'Enter the Labyrinth',
                         emoji: { name: '🔮' },
@@ -222,7 +228,7 @@ export default class LabyrinthCommand extends BaseCommand {
                 .addText(isWinner ? `🎉 **LABYRINTH SOLVED!** **${winner.displayName}** escaped the maze! The track was **${data.trackName}**.` : `⏰ **LOST IN THE MAZE!** The track was **${data.trackName}** by **${data.artistName}**.`)
                 .addFullImage(data.artworkUrl)
                 .addAction("-# Keep exploring?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'lab_play_again',
                     label: 'Play Again',
                     emoji: { name: '🔄' },

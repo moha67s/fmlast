@@ -1,9 +1,17 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { Spotify } from '../../services/api/Spotify';
 import { MusicBrainz } from '../../services/api/MusicBrainz';
 import { prisma } from '../../database/client';
-import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType, ActionRowBuilder, ButtonBuilder } from 'discord.js';
+import { AttachmentBuilder,
+  SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType,
+  ActionRowBuilder,
+  ButtonBuilder
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
@@ -94,7 +102,7 @@ export default class ZoomGuessCommand extends BaseCommand {
                     .setAccent(0x5865F2)
                     .addText(`### 🔍 ZOOM GUESS\nReady to guess an album from <@${discordId}>'s collection?\n**The camera starts super close. Zoom out to win!**`)
                     .addAction("-# Zoom Level: 10x", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'start_zoomguess',
                         label: 'Start Game',
                         emoji: { name: '🔍' },
@@ -162,7 +170,7 @@ export default class ZoomGuessCommand extends BaseCommand {
 
             if (hintsUsed < 3) {
                 payload.addAction("-# Need to zoom out?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'zg_hint',
                     label: `Zoom Out (${3 - hintsUsed} left)`,
                     emoji: { name: '➖' },
@@ -216,7 +224,7 @@ export default class ZoomGuessCommand extends BaseCommand {
                 .addText(isWinner ? `🎉 **CORRECT!** **${winner.displayName}** identified **${data.albumName}**!` : `⏰ **TIME UP!** The album was **${data.albumName}** by **${data.artistName}**.`)
                 .addFullImage(data.artworkUrl)
                 .addAction("-# Keep going?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'zg_play_again',
                     label: 'Play Again',
                     emoji: { name: '🔄' },

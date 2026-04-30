@@ -1,6 +1,6 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, AttachmentBuilder, ChannelType, TextChannel } from 'discord.js';
+import { SlashCommandBuilder, AttachmentBuilder, ChannelType, TextChannel, ComponentType, ButtonStyle } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { LastFM } from '../../services/api/LastFM';
 import { PuppeteerService } from '../../services/external/PuppeteerService';

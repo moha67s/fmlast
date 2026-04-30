@@ -1,7 +1,12 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
 import { Prisma } from '@prisma/client';
-import { SlashCommandBuilder, TextChannel } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { LastfmHealthTracker } from '../../services/bot/LastfmHealthTracker';
@@ -182,10 +187,10 @@ export default class BillboardCommand extends BaseCommand {
 
                 if (totalPages > 1) {
                     builder.addRow([
-                        { type: 2, style: 2, custom_id: 'bb_first', emoji: { id: '883825508633182208' }, disabled: page === 1 },
-                        { type: 2, style: 2, custom_id: 'bb_prev', emoji: { id: '883825508507336704' }, disabled: page === 1 },
-                        { type: 2, style: 2, custom_id: 'bb_next', emoji: { id: '883825508087922739' }, disabled: page === totalPages },
-                        { type: 2, style: 2, custom_id: 'bb_last', emoji: { id: '883825508482183258' }, disabled: page === totalPages }
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'bb_first', emoji: { id: '883825508633182208' }, disabled: page === 1 },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'bb_prev', emoji: { id: '883825508507336704' }, disabled: page === 1 },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'bb_next', emoji: { id: '883825508087922739' }, disabled: page === totalPages },
+                        { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'bb_last', emoji: { id: '883825508482183258' }, disabled: page === totalPages }
                     ]);
                 }
 

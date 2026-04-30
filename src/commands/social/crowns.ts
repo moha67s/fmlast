@@ -1,9 +1,16 @@
-import { SettingService } from '../../services/bot/SettingService';
+import {
+  SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
 import { CrownService } from '../../services/bot/CrownService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { TextChannel, ComponentType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
+import { TextChannel,
+  ComponentType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder
+} from "discord.js";
 
 type CrownView = 'Playcount' | 'Recent' | 'Stolen';
 
@@ -84,15 +91,15 @@ export default class CrownsCommand extends BaseCommand {
 
             // Row 1: Paginator Buttons
             builder.addRow([
-                { type: 2, style: 2, custom_id: 'paginator_first', emoji: { id: '883825508633182208' }, disabled: page === 1 },
-                { type: 2, style: 2, custom_id: 'paginator_prev', emoji: { id: '883825508507336704' }, disabled: page === 1 },
-                { type: 2, style: 2, custom_id: 'paginator_next', emoji: { id: '883825508087922739' }, disabled: page === totalPages },
-                { type: 2, style: 2, custom_id: 'paginator_last', emoji: { id: '883825508482183258' }, disabled: page === totalPages }
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'paginator_first', emoji: { id: '883825508633182208' }, disabled: page === 1 },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'paginator_prev', emoji: { id: '883825508507336704' }, disabled: page === 1 },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'paginator_next', emoji: { id: '883825508087922739' }, disabled: page === totalPages },
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, custom_id: 'paginator_last', emoji: { id: '883825508482183258' }, disabled: page === totalPages }
             ]);
 
             // Row 2: Select Menu
             builder.addRow([{
-                type: 3,
+                type: ComponentType.StringSelect,
                 custom_id: 'user-crownpicker',
                 placeholder: 'Select crown view',
                 options: [

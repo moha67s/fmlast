@@ -1,4 +1,4 @@
-import { Message } from 'discord.js';
+import { Message, ComponentType, ButtonStyle } from "discord.js";
 import { QueueManager } from './QueueManager';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
@@ -124,8 +124,8 @@ export class LyricsService {
                 `### 🎤 Live Lyrics\n\n${lyricsText || '*♪ Instrumental ♪*'}\n\n-# ${progress} • Synced via LRCLib`
             )
             .addRow([
-                { type: 2, style: 2, label: '📜 Full Lyrics', custom_id: `mp-lyrics-full:${guildId}` },
-                { type: 2, style: 4, label: '⏹️ Stop Sync',  custom_id: `mp-lyrics-stop:${guildId}` }
+                { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '📜 Full Lyrics', custom_id: `mp-lyrics-full:${guildId}` },
+                { type: ComponentType.Button, style: ButtonStyle.Danger, label: '⏹️ Stop Sync',  custom_id: `mp-lyrics-stop:${guildId}` }
             ]);
 
         return builder.build();

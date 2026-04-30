@@ -1,8 +1,12 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { Youtube } from '../../services/api/Youtube';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
 export default class YoutubeCommand extends BaseCommand {
@@ -75,8 +79,8 @@ export default class YoutubeCommand extends BaseCommand {
                 .addThumbnail(result.thumbnail, `### [${result.title}](${result.url})\n**${result.channelTitle}**`)
                 .addRow([
                     {
-                        type: 2,
-                        style: 5,
+                        type: ComponentType.Button,
+                        style: ButtonStyle.Link,
                         label: 'Watch on YouTube',
                         url: result.url
                     }

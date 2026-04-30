@@ -1,6 +1,10 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { LastFM } from '../../services/api/LastFM';
 import { resolveTargetUser } from '../../utils/userResolver';
@@ -133,30 +137,30 @@ export default class ArtistTopTracksCommand extends BaseCommand {
                 .addText(`-# Page 1/${totalPages} — ${totalDifferentTracks} different tracks\n-# ${displayName} has ${totalArtistPlays} total artist plays`)
                 .addRow([
                     {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: `at-page:first:1:${userId}:${encodeURIComponent(displayArtistName)}`,
-                        style: 2,
+                        style: ButtonStyle.Secondary,
                         disabled: true,
                         emoji: { id: "883825508633182208", name: "pages_first" }
                     },
                     {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: `at-page:prev:1:${userId}:${encodeURIComponent(displayArtistName)}`,
-                        style: 2,
+                        style: ButtonStyle.Secondary,
                         disabled: true,
                         emoji: { id: "883825508507336704", name: "pages_previous" }
                     },
                     {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: `at-page:next:1:${userId}:${encodeURIComponent(displayArtistName)}`,
-                        style: 2,
+                        style: ButtonStyle.Secondary,
                         disabled: totalPages <= 1,
                         emoji: { id: "883825508087922739", name: "pages_next" }
                     },
                     {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: `at-page:last:1:${userId}:${encodeURIComponent(displayArtistName)}`,
-                        style: 2,
+                        style: ButtonStyle.Secondary,
                         disabled: totalPages <= 1,
                         emoji: { id: "883825508482183258", name: "pages_last" }
                     }

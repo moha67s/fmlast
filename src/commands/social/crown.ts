@@ -1,10 +1,14 @@
-import { SettingService } from '../../services/bot/SettingService';
+import {
+  SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
 import { CrownService } from '../../services/bot/CrownService';
 import { LastFM } from '../../services/api/LastFM';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { TextChannel } from 'discord.js';
+import { TextChannel,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 
 export default class CrownCommand extends BaseCommand {
     name = 'crown';
@@ -92,8 +96,8 @@ export default class CrownCommand extends BaseCommand {
 
             // WhoKnows Button (Action Row)
             builder.addRow([{
-                type: 2,
-                style: 2,
+                type: ComponentType.Button,
+                style: ButtonStyle.Secondary,
                 label: 'WhoKnows',
                 emoji: { name: '📋' },
                 custom_id: `wk_shortcut:${artistName}`

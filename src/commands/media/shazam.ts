@@ -2,6 +2,8 @@ import {
   SlashCommandBuilder,
   TextChannel,
   AttachmentBuilder,
+  ComponentType,
+  ButtonStyle
 } from "discord.js";
 import { BaseCommand } from "../../structures/BaseCommand";
 import { AppleMusic } from "../../services/api/AppleMusic";
@@ -237,11 +239,11 @@ export default class ShazamCommand extends BaseCommand {
       const trackUrlLastfm = `https://www.last.fm/music/${encodeURIComponent(artistName)}/_/${encodeURIComponent(trackTitle)}`;
       
       const platformButtons: any[] = [];
-      if (links.spotify) platformButtons.push({ type: 2, style: 5, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
-      if (links.apple) platformButtons.push({ type: 2, style: 5, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
-      if (links.deezer) platformButtons.push({ type: 2, style: 5, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
-      if (trackUrlLastfm) platformButtons.push({ type: 2, style: 5, url: trackUrlLastfm, emoji: { id: "1496297104434270290", name: "las" } });
-      if (links.youtube) platformButtons.push({ type: 2, style: 5, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
+      if (links.spotify) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
+      if (links.apple) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
+      if (links.deezer) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
+      if (trackUrlLastfm) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: trackUrlLastfm, emoji: { id: "1496297104434270290", name: "las" } });
+      if (links.youtube) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
 
       const payload = new ComponentsV2()
         .setAccent(0x0088ff) // Shazam Blue
@@ -254,14 +256,14 @@ export default class ShazamCommand extends BaseCommand {
 
       payload.addRow([
           {
-            type: 2,
-            style: 2,
+            type: ComponentType.Button,
+            style: ButtonStyle.Secondary,
             custom_id: `wh-lyrics:${artistName.substring(0, 35)}|${trackTitle.substring(0, 35)}`,
             label: "Lyrics Card"
           },
           {
-            type: 2,
-            style: 2,
+            type: ComponentType.Button,
+            style: ButtonStyle.Secondary,
             custom_id: `wh-full-lyrics:${artistName.substring(0, 35)}|${trackTitle.substring(0, 35)}`,
             label: "Full Lyrics"
           }

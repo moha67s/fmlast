@@ -1,3 +1,4 @@
+import { ComponentType, ButtonStyle } from "discord.js";
 import { LastFM } from '../api/LastFM';
 import { prisma } from '../../database/client';
 
@@ -178,29 +179,29 @@ export class ProfileService {
             components: [
                 {
                     type: 9,
-                    components: [{ type: 10, content: headerText }],
-                    accessory: { type: 11, media: { url: avatarUrl }, description: null, spoiler: false },
+                    components: [{ type: ComponentType.TextDisplay, content: headerText }],
+                    accessory: { type: ComponentType.Thumbnail, media: { url: avatarUrl }, description: null, spoiler: false },
                 },
-                { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: statsBlock1 },
-                { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: statsLines.join('\n') },
+                { type: ComponentType.Separator, divider: true, spacing: 1 },
+                { type: ComponentType.TextDisplay, content: statsBlock1 },
+                { type: ComponentType.Separator, divider: true, spacing: 1 },
+                { type: ComponentType.TextDisplay, content: statsLines.join('\n') },
             ],
         };
 
         const actionRow: any = {
-            type: 1,
+            type: ComponentType.ActionRow,
             components: [
                 {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: `user-history:${invokerDiscordId}:${targetDiscordId}`,
-                    style: 2,
+                    style: ButtonStyle.Secondary,
                     label: 'History',
                     emoji: { name: '📖' },
                 },
                 {
-                    type: 2,
-                    style: 5,
+                    type: ComponentType.Button,
+                    style: ButtonStyle.Link,
                     url: `https://last.fm/user/${username}`,
                     label: 'Last.fm',
                     emoji: { id: '882227627287515166', name: 'services_lastfm' },
@@ -269,27 +270,27 @@ export class ProfileService {
             components: [
                 {
                     type: 9,
-                    components: [{ type: 10, content: headerText }],
-                    accessory: { type: 11, media: { url: avatarUrl }, description: null, spoiler: false },
+                    components: [{ type: ComponentType.TextDisplay, content: headerText }],
+                    accessory: { type: ComponentType.Thumbnail, media: { url: avatarUrl }, description: null, spoiler: false },
                 },
-                { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: historyContent },
+                { type: ComponentType.Separator, divider: true, spacing: 1 },
+                { type: ComponentType.TextDisplay, content: historyContent },
             ],
         };
 
         const actionRow: any = {
-            type: 1,
+            type: ComponentType.ActionRow,
             components: [
                 {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: `user-profile:${invokerDiscordId}:${targetDiscordId}`,
-                    style: 2,
+                    style: ButtonStyle.Secondary,
                     label: 'Profile',
                     emoji: { name: 'ℹ' },
                 },
                 {
-                    type: 2,
-                    style: 5,
+                    type: ComponentType.Button,
+                    style: ButtonStyle.Link,
                     url: `https://last.fm/user/${username}`,
                     label: 'Last.fm',
                     emoji: { id: '882227627287515166', name: 'services_lastfm' },

@@ -1,6 +1,12 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { SlashCommandBuilder, ChatInputCommandInteraction, Message } from 'discord.js';
+import { SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  Message,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { QueueManager } from '../../services/music/QueueManager';
 
 export default class QueueCommand extends BaseCommand {
@@ -56,8 +62,8 @@ export default class QueueCommand extends BaseCommand {
 
             if (totalPages > 1) {
                 builder.addRow([
-                    { type: 2, style: 2, label: '◀️', customId: `q-prev:${page}`, disabled: page === 0 },
-                    { type: 2, style: 2, label: '▶️', customId: `q-next:${page}`, disabled: page === totalPages - 1 }
+                    { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '◀️', customId: `q-prev:${page}`, disabled: page === 0 },
+                    { type: ComponentType.Button, style: ButtonStyle.Secondary, label: '▶️', customId: `q-next:${page}`, disabled: page === totalPages - 1 }
                 ]);
             }
 

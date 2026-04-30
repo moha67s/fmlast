@@ -3,6 +3,8 @@ import {
   AttachmentBuilder,
   TextChannel,
   ChannelType,
+  ComponentType,
+  ButtonStyle
 } from "discord.js";
 import { BaseCommand } from "../../structures/BaseCommand";
 import { LastFM } from "../../services/api/LastFM";
@@ -256,11 +258,11 @@ export default class CoverCommand extends BaseCommand {
       const trackUrlLastfm = trackName !== "Unknown Track" ? `https://www.last.fm/music/${encodeURIComponent(artist)}/_/${encodeURIComponent(trackName)}` : null;
 
       const buttons: any[] = [];
-      if (links.spotify) buttons.push({ type: 2, style: 5, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
-      if (links.apple) buttons.push({ type: 2, style: 5, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
-      if (links.deezer) buttons.push({ type: 2, style: 5, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
-      if (trackUrlLastfm) buttons.push({ type: 2, style: 5, url: trackUrlLastfm, emoji: { id: "1496297104434270290", name: "las" } });
-      if (links.youtube) buttons.push({ type: 2, style: 5, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
+      if (links.spotify) buttons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
+      if (links.apple) buttons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
+      if (links.deezer) buttons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
+      if (trackUrlLastfm) buttons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: trackUrlLastfm, emoji: { id: "1496297104434270290", name: "las" } });
+      if (links.youtube) buttons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
 
       const payload = new ComponentsV2()
         .setAccent(userColorInt)

@@ -1,5 +1,15 @@
-import { BaseCommand } from '../../structures/BaseCommand';
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, Interaction } from 'discord.js';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
+import { SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  Interaction,
+  ComponentType
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { Playlist } from '../../models/Playlist';
 import { MongoService } from '../../database/mongo';
@@ -34,12 +44,12 @@ export default class PlaylistCommand extends BaseCommand {
                 title: 'Create Playlist',
                 custom_id: `mp-modal-pl-create:${interaction.guildId}`,
                 components: [{
-                    type: 1,
+                    type: ComponentType.ActionRow,
                     components: [{
                         type: 4,
                         custom_id: 'pl_name',
                         label: 'Playlist Name',
-                        style: 1,
+                        style: ButtonStyle.Primary,
                         placeholder: 'e.g. My Chill Mix',
                         required: true
                     }]
@@ -57,8 +67,8 @@ export default class PlaylistCommand extends BaseCommand {
             .setAccent(0x5865F2)
             .addText('### 📁 Playlist Manager\nManage your personal music library. Create custom playlists and play them anytime.')
             .addRow([
-                { type: 2, style: 3, custom_id: 'mp-pl-create', label: 'Create New', emoji: '➕' },
-                { type: 2, style: 1, custom_id: 'mp-pl-view-all', label: 'My Playlists', emoji: '📚' }
+                { type: ComponentType.Button, style: ButtonStyle.Success, custom_id: 'mp-pl-create', label: 'Create New', emoji: '➕' },
+                { type: ComponentType.Button, style: ButtonStyle.Primary, custom_id: 'mp-pl-view-all', label: 'My Playlists', emoji: '📚' }
             ]);
 
         await interaction.reply(menu.build());

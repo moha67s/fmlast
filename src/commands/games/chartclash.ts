@@ -1,6 +1,13 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType, User, AttachmentBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType,
+  User,
+  AttachmentBuilder
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
@@ -99,13 +106,13 @@ export default class ChartClashCommand extends BaseCommand {
                 .addSeparator()
                 .addRow([
                     {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'clash_a',
                         label: 'Option A',
                         style: ButtonStyle.Primary
                     },
                     {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'clash_b',
                         label: 'Option B',
                         style: ButtonStyle.Primary
@@ -136,7 +143,7 @@ export default class ChartClashCommand extends BaseCommand {
                         .addText(`🅰️ **${itemA.name}**: ${mode === 'PLAYS' ? `\`${itemA.playcount}\` plays` : `Released \`${itemA.year}\``}`)
                         .addText(`🅱️ **${itemB.name}**: ${mode === 'PLAYS' ? `\`${itemB.playcount}\` plays` : `Released \`${itemB.year}\``}`)
                         .addAction("-# Rematch?", {
-                            type: 2,
+                            type: ComponentType.Button,
                             custom_id: 'clash_play_again',
                             label: 'Play Again',
                             emoji: { name: '🔄' },
@@ -160,7 +167,7 @@ export default class ChartClashCommand extends BaseCommand {
                         .addSeparator()
                         .addText(`The correct answer was **${answer === 'A' ? itemA.name : itemB.name}**.`)
                         .addAction("-# Try again?", {
-                            type: 2,
+                            type: ComponentType.Button,
                             custom_id: 'clash_play_again',
                             label: 'Play Again',
                             emoji: { name: '🔄' },

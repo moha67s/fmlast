@@ -202,4 +202,16 @@ export class LyricsService {
         const randomIndex = Math.floor(Math.random() * (safeEnd - safeStart + 1)) + safeStart;
         return lines.slice(randomIndex, randomIndex + length);
     }
+
+    /**
+     * Fetch full lyrics by Genius Song ID
+     */
+    static async fetchFullLyricsById(geniusId: string): Promise<string | null> {
+        try {
+            const song = await genius.songs.get(parseInt(geniusId));
+            return await song.lyrics();
+        } catch {
+            return null;
+        }
+    }
 }

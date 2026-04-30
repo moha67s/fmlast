@@ -4,7 +4,7 @@ import { Spotify } from '../../services/api/Spotify';
 import { AppleMusic } from '../../services/api/AppleMusic';
 import { Deezer } from '../../services/api/Deezer';
 import { prisma } from '../../database/client';
-import { AttachmentBuilder, TextChannel } from 'discord.js';
+import { AttachmentBuilder, TextChannel, ComponentType, ButtonStyle } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { createRecapVideo } from '../../utils/downloader';

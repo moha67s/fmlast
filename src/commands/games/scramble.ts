@@ -1,7 +1,13 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType } from 'discord.js';
+import { AttachmentBuilder,
+  SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
@@ -82,7 +88,7 @@ export default class ScrambleCommand extends BaseCommand {
                     .setAccent(0x5865F2)
                     .addText(`### 🧩 COVER SCRAMBLE\nReady to solve an album puzzle from <@${discordId}>'s collection?\n**Identify the artwork as the pieces move back to their original spots!**`)
                     .addAction("-# Puzzle Difficulty: 3x3", {
-                        type: 2,
+                        type: ComponentType.Button,
                         custom_id: 'start_scramble',
                         label: 'Start Puzzle',
                         emoji: { name: '🧩' },
@@ -239,7 +245,7 @@ export default class ScrambleCommand extends BaseCommand {
                 .addText(isWinner ? `🎉 **PUZZLE SOLVED!** **${winner.displayName}** identified **${data.albumName}**!` : `⏰ **TIME UP!** The album was **${data.albumName}** by **${data.artistName}**.`)
                 .addFullImage(data.artworkUrl)
                 .addAction("-# Keep puzzling?", {
-                    type: 2,
+                    type: ComponentType.Button,
                     custom_id: 'scr_play_again',
                     label: 'Play Again',
                     emoji: { name: '🔄' },

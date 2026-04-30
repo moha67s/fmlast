@@ -1,4 +1,4 @@
-import { ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, Message, Client, MessageFlags } from 'discord.js';
+import { ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, Message, Client, MessageFlags, ComponentType, TextInputStyle, ButtonStyle } from "discord.js";
 import { MusicPlayer } from '../../services/music/MusicPlayer';
 import { QueueManager } from '../../services/music/QueueManager';
 import { LyricsService } from '../../services/music/LyricsService';
@@ -122,12 +122,12 @@ export class MusicInteractionHandler {
                     title: 'Adjust Volume',
                     custom_id: `mp-modal-volume:${guildId}`,
                     components: [{
-                        type: 1,
+                        type: ComponentType.ActionRow,
                         components: [{
-                            type: 4,
+                            type: ComponentType.TextInput,
                             custom_id: 'volume_input',
                             label: 'Volume (1-100)',
-                            style: 1,
+                            style: TextInputStyle.Short,
                             min_length: 1,
                             max_length: 3,
                             placeholder: 'Enter volume level...',
@@ -136,25 +136,25 @@ export class MusicInteractionHandler {
                         }]
                     }]
                 };
-                await interaction.showModal(volModal);
+                await interaction.showModal(volModal as any);
                 break;
             case 'mp-pl-create':
                 const plModal = {
                     title: 'Create Playlist',
                     custom_id: `mp-modal-pl-create:${guildId}`,
                     components: [{
-                        type: 1,
+                        type: ComponentType.ActionRow,
                         components: [{
-                            type: 4,
+                            type: ComponentType.TextInput,
                             custom_id: 'pl_name',
                             label: 'Playlist Name',
-                            style: 1,
+                            style: TextInputStyle.Short,
                             placeholder: 'e.g. My Chill Mix',
                             required: true
                         }]
                     }]
                 };
-                await interaction.showModal(plModal);
+                await interaction.showModal(plModal as any);
                 break;
             case 'mp-pl-songs':
                 const [______, viewId] = interaction.customId.split(':');
@@ -178,8 +178,8 @@ export class MusicInteractionHandler {
                 
                 for (let i = 0; i < playlists.length; i += 5) {
                     const row = playlists.slice(i, i + 5).map(pl => ({
-                        type: 2,
-                        style: 1,
+                        type: ComponentType.Button,
+                        style: ButtonStyle.Primary,
                         custom_id: `mp-pl-manage:${pl._id}`,
                         label: pl.name,
                         emoji: '🎵'
@@ -197,10 +197,10 @@ export class MusicInteractionHandler {
                     .setAccent(0x1DB954)
                     .addText(`### ⚙️ Managing: ${pl.name}\n**Tracks:** ${pl.songs.length}\nChoose an action below.`)
                     .addRow([
-                        { type: 2, style: 3, custom_id: `mp-pl-play:${plId}`, label: 'Play Now', emoji: '▶️' },
-                        { type: 2, style: 1, custom_id: `mp-pl-add-show:${plId}`, label: 'Add Songs', emoji: '➕' },
-                        { type: 2, style: 1, custom_id: `mp-pl-songs:${plId}`, label: 'View Songs', emoji: '📑' },
-                        { type: 2, style: 4, custom_id: `mp-pl-delete:${plId}`, label: 'Delete', emoji: '🗑️' }
+                        { type: ComponentType.Button, style: ButtonStyle.Success, custom_id: `mp-pl-play:${plId}`, label: 'Play Now', emoji: '▶️' },
+                        { type: ComponentType.Button, style: ButtonStyle.Primary, custom_id: `mp-pl-add-show:${plId}`, label: 'Add Songs', emoji: '➕' },
+                        { type: ComponentType.Button, style: ButtonStyle.Primary, custom_id: `mp-pl-songs:${plId}`, label: 'View Songs', emoji: '📑' },
+                        { type: ComponentType.Button, style: ButtonStyle.Danger, custom_id: `mp-pl-delete:${plId}`, label: 'Delete', emoji: '🗑️' }
                     ]);
                 await interaction.reply({ ...plManage.build(), ephemeral: true });
                 break;
@@ -210,18 +210,18 @@ export class MusicInteractionHandler {
                     title: 'Add Songs',
                     custom_id: `mp-modal-pl-add:${addId}`,
                     components: [{
-                        type: 1,
+                        type: ComponentType.ActionRow,
                         components: [{
-                            type: 4,
+                            type: ComponentType.TextInput,
                             custom_id: 'songs_input',
                             label: 'Songs or URLs (comma separated)',
-                            style: 2,
+                            style: TextInputStyle.Paragraph,
                             placeholder: 'Song 1, Song 2, https://youtube.com/...',
                             required: true
                         }]
                     }]
                 };
-                await interaction.showModal(addModal);
+                await interaction.showModal(addModal as any);
                 break;
             case 'mp-pl-play':
                 const [____, playId] = interaction.customId.split(':');

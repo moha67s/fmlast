@@ -1,7 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { FriendService } from '../../services/bot/FriendService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 
 export default class FriendsCommand extends BaseCommand {
     name = 'friends';
@@ -65,8 +69,8 @@ export default class FriendsCommand extends BaseCommand {
                     .setAccent(0x5865F2)
                     .addText(`### ✉️ Friend Request\n<@${targetUser.id}>, **${author.username}** wants to be your friend on Last.fm!`)
                     .addRow([
-                        { type: 2, custom_id: 'friend-accept:' + req.id, label: 'Accept', style: 3 },
-                        { type: 2, custom_id: 'friend-deny:' + req.id, label: 'Decline', style: 4 }
+                        { type: ComponentType.Button, custom_id: 'friend-accept:' + req.id, label: 'Accept', style: ButtonStyle.Success },
+                        { type: ComponentType.Button, custom_id: 'friend-deny:' + req.id, label: 'Decline', style: ButtonStyle.Danger }
                     ]);
 
                 const payload = builder.build();

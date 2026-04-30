@@ -4,7 +4,7 @@ import { AppleMusic } from '../../services/api/AppleMusic';
 import { Deezer } from '../../services/api/Deezer';
 import { Spotify } from '../../services/api/Spotify';
 import { prisma } from '../../database/client';
-import { AttachmentBuilder, SlashCommandBuilder, TextChannel } from 'discord.js';
+import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ComponentType, ButtonStyle } from 'discord.js';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import axios from 'axios';

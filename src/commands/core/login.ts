@@ -1,7 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { TextChannel, ButtonStyle } from 'discord.js';
+import { TextChannel,
+  ButtonStyle,
+  ComponentType
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
 export default class LoginCommand extends BaseCommand {
@@ -36,13 +40,13 @@ export default class LoginCommand extends BaseCommand {
             .addText(content)
             .addRow([
                 {
-                    type: 2,
+                    type: ComponentType.Button,
                     style: ButtonStyle.Secondary,
                     custom_id: "user-login",
                     label: "Connect Last.fm account"
                 },
                 {
-                    type: 2,
+                    type: ComponentType.Button,
                     style: ButtonStyle.Link,
                     url: "https://www.last.fm/join",
                     label: "Sign up"

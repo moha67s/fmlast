@@ -1,4 +1,4 @@
-import { Message, TextChannel, VoiceChannel } from 'discord.js';
+import { Message, TextChannel, VoiceChannel, ComponentType, ButtonStyle } from "discord.js";
 import { ScrobbleService } from './ScrobbleService';
 import { LastFM } from '../api/LastFM';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
@@ -229,9 +229,9 @@ export class MusicBotService {
             .setAccent(0xd80000) // hsla(0, 100%, 36.5%, 1)
             .addText(`၊،||၊ Scrobbling **${resolvedTrack}** by **${resolvedArtist}** for ${listenerDiscordIds.length} listener${listenerDiscordIds.length === 1 ? '' : 's'}`)
             .addAction(`Length ${duration} — ${message.author.username}`, {
-                type: 2,
+                type: ComponentType.Button,
                 custom_id: 'user-setting-botscrobbling-manage',
-                style: 2,
+                style: ButtonStyle.Secondary,
                 label: 'Manage'
             });
 

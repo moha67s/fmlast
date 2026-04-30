@@ -4,7 +4,7 @@ import {
   TextChannel,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
+  ButtonStyle
 } from "discord.js";
 import { BaseCommand } from "../../structures/BaseCommand";
 import { LastFM } from "../../services/api/LastFM";

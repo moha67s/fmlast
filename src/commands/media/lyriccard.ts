@@ -1,5 +1,12 @@
-import { BaseCommand } from '../../structures/BaseCommand';
-import { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, TextChannel } from 'discord.js';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
+import { AttachmentBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  SlashCommandBuilder,
+  TextChannel
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
 import { LyricsService, genius } from '../../services/external/LyricsService';

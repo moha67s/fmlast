@@ -3,7 +3,7 @@ import 'dotenv/config';
 export const config = {
     DISCORD_TOKEN: process.env.DISCORD_TOKEN!,
     PREFIX: '+',                    // change if you want another prefix
-    CLIENT_ID: process.env.DISCORD_CLIENT_ID!, // we'll get this in a second
+    CLIENT_ID: process.env.DISCORD_CLIENT_ID || '1492797348139630784', // Fallback to BOT_DISCORD_ID
     LASTFM_API_KEY: process.env.LASTFM_API_KEY!,
     LASTFM_API_SECRET: process.env.LASTFM_API_SECRET!,
     CHART_STAGING_CHANNEL_ID: process.env.CHART_STAGING_CHANNEL_ID!,

@@ -1,6 +1,12 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { SlashCommandBuilder, TextChannel, ButtonStyle, ComponentType, AttachmentBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ButtonStyle,
+  ComponentType,
+  AttachmentBuilder
+} from "discord.js";
 import { GameManager } from '../../utils/gameManager';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { PuppeteerService } from '../../services/external/PuppeteerService';
@@ -79,9 +85,9 @@ export default class TimelineMasterCommand extends BaseCommand {
                 .addFullImage(`attachment://${attachment.name}`)
                 .addSeparator()
                 .addRow([
-                    { type: 2, custom_id: 'tl_0', label: 'Album 1', emoji: { name: '1️⃣' }, style: ButtonStyle.Secondary },
-                    { type: 2, custom_id: 'tl_1', label: 'Album 2', emoji: { name: '2️⃣' }, style: ButtonStyle.Secondary },
-                    { type: 2, custom_id: 'tl_2', label: 'Album 3', emoji: { name: '3️⃣' }, style: ButtonStyle.Secondary }
+                    { type: ComponentType.Button, custom_id: 'tl_0', label: 'Album 1', emoji: { name: '1️⃣' }, style: ButtonStyle.Secondary },
+                    { type: ComponentType.Button, custom_id: 'tl_1', label: 'Album 2', emoji: { name: '2️⃣' }, style: ButtonStyle.Secondary },
+                    { type: ComponentType.Button, custom_id: 'tl_2', label: 'Album 3', emoji: { name: '3️⃣' }, style: ButtonStyle.Secondary }
                 ]);
 
             const initialMsg = isSlash ? await interactionOrMessage.editReply({ ...payload.build(), files: [attachment] }) : await channel.send({ ...payload.build(), files: [attachment] });
@@ -112,9 +118,9 @@ export default class TimelineMasterCommand extends BaseCommand {
                             .addFullImage(`attachment://${attachment.name}`)
                             .addSeparator()
                             .addRow([
-                                { type: 2, custom_id: 'tl_0', label: 'Album 1', emoji: { name: '1️⃣' }, style: ButtonStyle.Secondary },
-                                { type: 2, custom_id: 'tl_1', label: 'Album 2', emoji: { name: '2️⃣' }, style: ButtonStyle.Secondary },
-                                { type: 2, custom_id: 'tl_2', label: 'Album 3', emoji: { name: '3️⃣' }, style: ButtonStyle.Secondary }
+                                { type: ComponentType.Button, custom_id: 'tl_0', label: 'Album 1', emoji: { name: '1️⃣' }, style: ButtonStyle.Secondary },
+                                { type: ComponentType.Button, custom_id: 'tl_1', label: 'Album 2', emoji: { name: '2️⃣' }, style: ButtonStyle.Secondary },
+                                { type: ComponentType.Button, custom_id: 'tl_2', label: 'Album 3', emoji: { name: '3️⃣' }, style: ButtonStyle.Secondary }
                             ]);
 
                         await i.editReply(nextPayload.build());
@@ -134,7 +140,7 @@ export default class TimelineMasterCommand extends BaseCommand {
                             .addText(`📅 **${sorted[1].year}**: ${sorted[1].name}`)
                             .addText(`📅 **${sorted[2].year}**: ${sorted[2].name}`)
                             .addAction("-# Play more?", {
-                                type: 2,
+                                type: ComponentType.Button,
                                 custom_id: 'tl_play_again',
                                 label: 'Play Again',
                                 emoji: { name: '🔄' },
@@ -161,7 +167,7 @@ export default class TimelineMasterCommand extends BaseCommand {
                         .addText(`**The correct order was:**`)
                         .addText(`1️⃣ **${sorted[0].name}** (${sorted[0].year})\n2️⃣ **${sorted[1].name}** (${sorted[1].year})\n3️⃣ **${sorted[2].name}** (${sorted[2].year})`)
                         .addAction("-# Play more?", {
-                            type: 2,
+                            type: ComponentType.Button,
                             custom_id: 'tl_play_again',
                             label: 'Play Again',
                             emoji: { name: '🔄' },

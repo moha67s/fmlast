@@ -1,7 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 
 export default class SettingsCommand extends BaseCommand {
     name = 'settings';
@@ -45,7 +49,7 @@ export default class SettingsCommand extends BaseCommand {
 
         builder.addRow([
             {
-                type: 3, // String Select Menu
+                type: ComponentType.StringSelect, // String Select Menu
                 custom_id: 'user-setting-picker',
                 placeholder: 'Select setting to view or change',
                 options: [

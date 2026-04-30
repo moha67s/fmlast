@@ -1,6 +1,11 @@
-import { BaseCommand } from '../../structures/BaseCommand';
+import {
+  BaseCommand } from '../../structures/BaseCommand';
 import { MusicPlayer } from '../../services/music/MusicPlayer';
-import { SlashCommandBuilder, TextChannel } from 'discord.js';
+import { SlashCommandBuilder,
+  TextChannel,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 
 export default class FiltersCommand extends BaseCommand {
@@ -65,7 +70,7 @@ export default class FiltersCommand extends BaseCommand {
                 .setAccent(0x5865F2)
                 .addText(`### 🎛️ Audio Filters\nSelect a filter from the menu below to apply it to the current track.`)
                 .addRow([{
-                    type: 3,
+                    type: ComponentType.StringSelect,
                     custom_id: `mp-filter-select:${guildId}`,
                     placeholder: 'Choose a filter...',
                     options: [

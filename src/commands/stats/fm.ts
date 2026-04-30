@@ -1,9 +1,14 @@
-import { SettingService } from '../../services/bot/SettingService';
+import {
+  SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
 import { prisma } from '../../database/client';
-import { TextChannel, AttachmentBuilder } from 'discord.js';
+import { TextChannel,
+  AttachmentBuilder,
+  ComponentType,
+  ButtonStyle
+} from "discord.js";
 import { Client as GeniusClient } from 'genius-lyrics';
 import { config } from '../../../config';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
@@ -101,10 +106,10 @@ export default class FMCommand extends BaseCommand {
             const links = resolved.links;
             const platformButtons: any[] = [];
             
-            if (links.spotify) platformButtons.push({ type: 2, style: 5, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
-            if (links.apple) platformButtons.push({ type: 2, style: 5, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
-            if (links.deezer) platformButtons.push({ type: 2, style: 5, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
-            if (track.url) platformButtons.push({ type: 2, style: 5, url: track.url, emoji: { id: "1496297104434270290", name: "las" } });
+            if (links.spotify) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.spotify, emoji: { id: "1496297132381048995", name: "sp" } });
+            if (links.apple) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.apple, emoji: { id: "1496297174869479548", name: "am" } });
+            if (links.deezer) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: links.deezer, emoji: { id: "1496297153717473311", name: "dez" } });
+            if (track.url) platformButtons.push({ type: ComponentType.Button, style: ButtonStyle.Link, url: track.url, emoji: { id: "1496297104434270290", name: "las" } });
 
             if (platformButtons.length > 0) {
                 builder.addRow(platformButtons);
