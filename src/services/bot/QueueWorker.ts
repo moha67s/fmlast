@@ -7,6 +7,7 @@ import IORedis from 'ioredis';
 import { LoggerService } from './LoggerService';
 import { IdResolutionService } from './IdResolutionService';
 import { CacheService } from './CacheService';
+import { LRUCache } from 'lru-cache';
 
 const REDIS_URL = process.env.REDIS_URL?.replace(/^["']|["']$/g, '') || '';
 
@@ -37,9 +38,15 @@ export async function triggerDeltaSync(discordId: string, force = false) {
         const user = await prisma.user.findUnique({ where: { discordId } });
         if (!user || !user.lastfmUsername) return;
         const settings: any = user.settings || {};
-        const lastSync = settings.lastSyncTimestamp || 0;
+        
+        const lastSyncExecuted = settings.lastSyncExecuted || 0;
         const now = Math.floor(Date.now() / 1000);
-        if (!force && (now - lastSync < 600)) return;
+        if (!force && (now - lastSyncExecuted < 600)) return;
+        
+        // Update the debounce timestamp immediately so we don't queue duplicates
+        settings.lastSyncExecuted = now;
+        await prisma.user.update({ where: { discordId }, data: { settings } });
+
         await indexQueue.add(`${force ? 'force-' : ''}delta-${discordId}`, { discordId, type: 'DELTA_SYNC' }, {
             jobId: `delta-${discordId}`,
             removeOnComplete: true,
@@ -104,13 +111,18 @@ async function handleIndexing(job: Job<IndexJobData>) {
         // Use the exact timestamp of the last scrobble. 
         // createMany(skipDuplicates: true) will handle the overlap perfectly.
         fromTimestamp = settings.lastSyncTimestamp || Math.floor(Date.now() / 1000) - 86400;
+        
+        // FMBot Parity: To catch deleted scrobbles, we fetch an overlapping window (last 3 days)
+        // This gives us an overlap window to diff and delete scrobbles removed on Last.fm
+        const threeDaysAgo = Math.floor(Date.now() / 1000) - (86400 * 3);
+        fromTimestamp = Math.min(fromTimestamp, threeDaysAgo);
     }
 
     // Local L1 cache to avoid hitting Redis for items already seen in THIS sync
     const l1Cache = {
-        artists: new Map<string, string>(),
-        tracks: new Map<string, string>(),
-        albums: new Map<string, string>()
+        artists: new LRUCache<string, string>({ max: 5000 }),
+        tracks: new LRUCache<string, string>({ max: 5000 }),
+        albums: new LRUCache<string, string>({ max: 5000 })
     };
 
     let firstPage;
@@ -181,7 +193,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
             console.log(`[Queue] ID Resolution took ${endRes - startRes}ms for ${uniqueCombos.size} unique items`);
         }
 
-        const data = plays.map(p => {
+        let data = plays.map(p => {
             const res = idMap.get(`${p.artistName}|||${p.trackName}|||${p.albumName || ''}`)!;
             return {
                 userId: user.id,
@@ -194,6 +206,51 @@ async function handleIndexing(job: Job<IndexJobData>) {
                 timePlayed: new Date(p.uts * 1000)
             };
         });
+
+        if (isDelta && data.length > 0) {
+            const minUts = Math.min(...plays.map(p => p.uts));
+            const maxUts = Math.max(...plays.map(p => p.uts));
+            
+            const existingPlays = await prisma.userPlay.findMany({
+                where: { userId: user.id, timePlayed: { gte: new Date(minUts * 1000), lte: new Date(maxUts * 1000) } },
+                select: { id: true, timePlayed: true, artistName: true, trackName: true, albumName: true }
+            });
+            
+            const incomingSet = new Set(data.map(p => `${p.timePlayed.getTime()}|${p.artistName}|${p.trackName}`));
+            const existingSet = new Set(existingPlays.map(p => `${p.timePlayed.getTime()}|${p.artistName}|${p.trackName}`));
+            
+            const addedPlays = data.filter(p => !existingSet.has(`${p.timePlayed.getTime()}|${p.artistName}|${p.trackName}`));
+            const orphanedPlays = existingPlays.filter(p => !incomingSet.has(`${p.timePlayed.getTime()}|${p.artistName}|${p.trackName}`));
+            
+            data = addedPlays; // Only insert truly new plays
+            
+            if (orphanedPlays.length > 0) {
+                console.log(`[Queue] Found ${orphanedPlays.length} orphaned plays. Deleting...`);
+                for (let i = 0; i < orphanedPlays.length; i += 500) {
+                    const chunk = orphanedPlays.slice(i, i + 500);
+                    await prisma.userPlay.deleteMany({ where: { id: { in: chunk.map(r => r.id) } } });
+                }
+            }
+
+            const updateAggs = (pName: string, pTrack: string, pAlbum: string | null, modifier: number) => {
+                const ak = pName.toLowerCase();
+                if (!artistCounts.has(ak)) artistCounts.set(ak, { name: pName, count: 0 });
+                artistCounts.get(ak)!.count += modifier;
+                
+                const tk = `${ak}:::${pTrack.toLowerCase()}`;
+                if (!trackCounts.has(tk)) trackCounts.set(tk, { artistName: pName, trackName: pTrack, count: 0 });
+                trackCounts.get(tk)!.count += modifier;
+                
+                if (pAlbum) {
+                    const alk = `${ak}:::${pAlbum.toLowerCase()}`;
+                    if (!albumCounts.has(alk)) albumCounts.set(alk, { artistName: pName, albumName: pAlbum, count: 0 });
+                    albumCounts.get(alk)!.count += modifier;
+                }
+            };
+            
+            addedPlays.forEach(p => updateAggs(p.artistName, p.trackName, p.albumName, 1));
+            orphanedPlays.forEach(p => updateAggs(p.artistName, p.trackName, p.albumName, -1));
+        }
 
         // Insert in smaller batches to avoid database timeouts
         for (let i = 0; i < data.length; i += 500) {
@@ -210,18 +267,20 @@ async function handleIndexing(job: Job<IndexJobData>) {
         for (const p of plays) {
             if (p.uts > maxUtsEncountered) maxUtsEncountered = p.uts;
             
-            const ak = p.artistName.toLowerCase();
-            if (!artistCounts.has(ak)) artistCounts.set(ak, { name: p.artistName, count: 0 });
-            artistCounts.get(ak)!.count += 1;
+            if (!isDelta) {
+                const ak = p.artistName.toLowerCase();
+                if (!artistCounts.has(ak)) artistCounts.set(ak, { name: p.artistName, count: 0 });
+                artistCounts.get(ak)!.count += 1;
 
-            const tk = `${ak}:::${p.trackName.toLowerCase()}`;
-            if (!trackCounts.has(tk)) trackCounts.set(tk, { artistName: p.artistName, trackName: p.trackName, count: 0 });
-            trackCounts.get(tk)!.count += 1;
+                const tk = `${ak}:::${p.trackName.toLowerCase()}`;
+                if (!trackCounts.has(tk)) trackCounts.set(tk, { artistName: p.artistName, trackName: p.trackName, count: 0 });
+                trackCounts.get(tk)!.count += 1;
 
-            if (p.albumName) {
-                const alk = `${ak}:::${p.albumName.toLowerCase()}`;
-                if (!albumCounts.has(alk)) albumCounts.set(alk, { artistName: p.artistName, albumName: p.albumName, count: 0 });
-                albumCounts.get(alk)!.count += 1;
+                if (p.albumName) {
+                    const alk = `${ak}:::${p.albumName.toLowerCase()}`;
+                    if (!albumCounts.has(alk)) albumCounts.set(alk, { artistName: p.artistName, albumName: p.albumName, count: 0 });
+                    albumCounts.get(alk)!.count += 1;
+                }
             }
             
             pendingPlays.push(p);
@@ -232,21 +291,22 @@ async function handleIndexing(job: Job<IndexJobData>) {
     for (let p = 1; p <= totalPages; p++) {
         let pageData;
         let retries = 0;
-        while (retries < 3) {
+        const failureDelays = [500, 2500, 5000, 10000];
+        while (retries < 4) {
             try {
                 if (p === 1) pageData = firstPage;
                 else pageData = await LastFM.getRecentTracksPaginated(username, 200, p, sessionKey, !!sessionKey, fromTimestamp);
                 if (pageData.tracks) processPage(pageData.tracks);
                 break;
             } catch (err: any) {
-                retries++;
-                console.error(`[Queue] Page ${p} failed for ${username} (Retry ${retries}/3)`);
+                console.error(`[Queue] Page ${p} failed for ${username} (Retry ${retries + 1}/4)`);
                 if (retries === 3) break;
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, failureDelays[retries]));
+                retries++;
             }
         }
 
-        if (p % 10 === 0 || p === totalPages) {
+        if (p % 5 === 0 || p === totalPages) {
             console.log(`[Queue] [${username}] Flushing page ${p}/${totalPages} to database...`);
             await withTimeout(flushPlaysToDB(pendingPlays), 120000, `flushPlaysToDB page ${p}`);
             pendingPlays = [];
@@ -276,9 +336,9 @@ async function handleIndexing(job: Job<IndexJobData>) {
 }
 
 async function upsertAggregates(userId: string, artists: Map<string, any>, tracks: Map<string, any>, albums: Map<string, any>, isDelta: boolean, l1Cache: { 
-    artists: Map<string, string>, 
-    tracks: Map<string, string>, 
-    albums: Map<string, string> 
+    artists: LRUCache<string, string>, 
+    tracks: LRUCache<string, string>, 
+    albums: LRUCache<string, string> 
 }) {
     const BATCH_SIZE = 1000;
 
@@ -558,8 +618,9 @@ async function detectDrift(userId: string, username: string, sessionKey: string 
         const localTotal = dbTotal._sum.playcount || 0;
         const drift = Math.abs(lfmTotal - localTotal);
         const driftPct = (drift / lfmTotal) * 100;
-        if (driftPct > 20) {
-            if (indexQueue) await indexQueue.add(`auto-full-${discordId}`, { discordId, type: 'FULL_SYNC' }, { jobId: `auto-full-${discordId}`, removeOnComplete: true, removeOnFail: true, delay: 5000 });
+        if (driftPct > 5) {
+            console.log(`[Queue] User ${username} has ${driftPct.toFixed(2)}% drift. Triggering DELTA_SYNC (auto healing).`);
+            if (indexQueue) await indexQueue.add(`auto-delta-${discordId}`, { discordId, type: 'DELTA_SYNC' }, { jobId: `auto-delta-${discordId}`, removeOnComplete: true, removeOnFail: true, delay: 5000 });
         }
     } catch (err) { }
 }
@@ -634,14 +695,8 @@ async function handleHistoryImport(job: Job<IndexJobData>) {
 }
 
 if (REDIS_URL) {
-    // BullMQ Clean Startup: Wipe any stalled/zombie jobs from previous crashed runs
-    if (indexQueue) {
-        indexQueue.obliterate({ force: true }).then(() => {
-            console.log('[Queue] Queue obliterated — starting fresh');
-        }).catch(err => {
-            console.error('[Queue] Obliterate failed:', err);
-        });
-    }
+    // BullMQ automatically handles stalled jobs via the stalledInterval setting.
+    // We should NOT obliterate the queue on startup, as it deletes jobs that were persisted across restarts.
 
     const worker = new Worker('user-index', async (job: Job<IndexJobData>) => {
         try {

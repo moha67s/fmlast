@@ -87,13 +87,37 @@ export default class RecapCommand extends BaseCommand {
             if (periodRequested === '12month') fromDate = new Date(now.getTime() - 365 * 86400 * 1000);
             if (periodRequested === 'overall') fromDate = new Date(0);
 
-            // Fetch everything from DB in parallel
-            const [topArtists, topTracks, topAlbums, topGenres] = await Promise.all([
-                StatsService.getTopArtists(dbUser.id, fromDate, now, 10),
-                StatsService.getTopTracks(dbUser.id, fromDate, now, 10),
-                StatsService.getTopAlbums(dbUser.id, fromDate, now, 10),
-                StatsService.getTopGenres(dbUser.id, fromDate, now, 10)
-            ]);
+            let topArtists: any[] = [];
+            let topTracks: any[] = [];
+            let topAlbums: any[] = [];
+            let topGenres: any[] = [];
+
+            if (periodRequested === 'overall') {
+                // FAST PATH: Read directly from aggregated tables for All-Time
+                const [dbArtists, dbTracks, dbAlbums, dbGenres] = await Promise.all([
+                    prisma.userArtist.findMany({ where: { userId: dbUser.id, playcount: { gt: 0 } }, orderBy: { playcount: 'desc' }, take: 10 }),
+                    prisma.userTrack.findMany({ where: { userId: dbUser.id, playcount: { gt: 0 } }, orderBy: { playcount: 'desc' }, take: 10 }),
+                    prisma.userAlbum.findMany({ where: { userId: dbUser.id, playcount: { gt: 0 } }, orderBy: { playcount: 'desc' }, take: 10 }),
+                    StatsService.getTopGenres(dbUser.id, fromDate, now, 10) // Keep genres from StatsService or compute natively later
+                ]);
+
+                topArtists = dbArtists.map(a => ({ name: a.artistName, playcount: a.playcount }));
+                topTracks = dbTracks.map(t => ({ name: t.trackName, artistName: t.artistName, playcount: t.playcount }));
+                topAlbums = dbAlbums.map(a => ({ name: a.albumName, artistName: a.artistName, playcount: a.playcount }));
+                topGenres = dbGenres;
+            } else {
+                // TIME-FILTERED: Group over raw UserPlay
+                const [dbArtists, dbTracks, dbAlbums, dbGenres] = await Promise.all([
+                    StatsService.getTopArtists(dbUser.id, fromDate, now, 10),
+                    StatsService.getTopTracks(dbUser.id, fromDate, now, 10),
+                    StatsService.getTopAlbums(dbUser.id, fromDate, now, 10),
+                    StatsService.getTopGenres(dbUser.id, fromDate, now, 10)
+                ]);
+                topArtists = dbArtists;
+                topTracks = dbTracks;
+                topAlbums = dbAlbums;
+                topGenres = dbGenres;
+            }
 
             if (!topArtists.length || !topTracks.length) {
                 // FALLBACK: Last.fm API if DB is empty

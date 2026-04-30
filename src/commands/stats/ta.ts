@@ -6,6 +6,8 @@ import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { StatsService } from '../../services/bot/StatsService';
 import { triggerDeltaSync } from '../../services/bot/QueueWorker';
+import { getBillboardLine } from '../../utils/billboard';
+import { TrackResolverService } from '../../services/api/TrackResolverService';
 
 export default class TopAlbumsCommand extends BaseCommand {
     name = 'ta';
@@ -18,6 +20,11 @@ export default class TopAlbumsCommand extends BaseCommand {
         .addStringOption((opt: any) =>
             opt.setName('query')
                 .setDescription('Time period (e.g. 1m, 2023) or user mention')
+                .setRequired(false)
+        )
+        .addBooleanOption((opt: any) => 
+            opt.setName('billboard')
+                .setDescription('Use billboard formatting mode')
                 .setRequired(false)
         );
 
@@ -45,12 +52,25 @@ export default class TopAlbumsCommand extends BaseCommand {
         triggerDeltaSync(targetDbUser.discordId);
 
         if (isSlash && !interactionOrMessage.deferred) await interactionOrMessage.deferReply();
+        else if (!isSlash) await interactionOrMessage.channel.sendTyping();
 
         try {
             let albums: any[] = [];
 
-            if (timeSettings.useCustomTimePeriod && timeSettings.startDateTime && timeSettings.endDateTime) {
-                // CUSTOM RANGE: Use DB via StatsService
+            if (timeSettings.apiParameter === 'overall') {
+                // ALL-TIME: Read directly from pre-aggregated UserAlbum table
+                const dbAlbums = await prisma.userAlbum.findMany({
+                    where: { userId: targetDbUser.id, playcount: { gt: 0 } },
+                    orderBy: { playcount: 'desc' },
+                    take: amount
+                });
+                albums = dbAlbums.map(a => ({ 
+                    name: a.albumName, 
+                    artist: { name: a.artistName }, 
+                    playcount: String(a.playcount) 
+                }));
+            } else if (timeSettings.startDateTime && timeSettings.endDateTime) {
+                // TIME-FILTERED: Use StatsService to group UserPlay table
                 const dbAlbums = await StatsService.getTopAlbums(targetDbUser.id, timeSettings.startDateTime, timeSettings.endDateTime, amount);
                 albums = dbAlbums.map(a => ({ 
                     name: a.name, 
@@ -58,7 +78,7 @@ export default class TopAlbumsCommand extends BaseCommand {
                     playcount: String(a.playcount) 
                 }));
             } else if (timeSettings.apiParameter === 'day') {
-                // DAILY: Use DB via StatsService
+                // DAILY
                 const oneDayAgo = new Date(Date.now() - 86400 * 1000);
                 const dbAlbums = await StatsService.getTopAlbums(targetDbUser.id, oneDayAgo, new Date(), amount);
                 albums = dbAlbums.map(a => ({ 
@@ -68,17 +88,12 @@ export default class TopAlbumsCommand extends BaseCommand {
                 }));
             }
 
-            if (albums.length === 0) {
-                // PRESET/FALLBACK: Use API
-                albums = await LastFM.getTopAlbums(targetDbUser.lastfmUsername!, timeSettings.apiParameter as any, amount, targetDbUser.lastfmSessionKey);
-            }
-
             const perPage = 10;
             let currentPage = 1;
             const totalPages = Math.ceil(albums.length / perPage) || 1;
 
-            const generatePayload = (page: number) => {
-                const builder = new ComponentsV2().setAccent(0x5d010b);
+            const generatePayload = async (page: number) => {
+                const builder = new ComponentsV2().setAccent(userSettings.accentColor);
                 const start = (page - 1) * perPage;
                 const slice = albums.slice(start, start + perPage);
 
@@ -87,15 +102,36 @@ export default class TopAlbumsCommand extends BaseCommand {
                     return builder.build();
                 }
 
+                const isBillboard = isSlash ? interactionOrMessage.options.getBoolean('billboard') ?? false : false;
+
                 const list = slice.map((a: any, i: number) => {
                     const rank = start + i + 1;
                     const artist = a.artist?.name || 'Unknown Artist';
                     const url = `https://www.last.fm/music/${encodeURIComponent(artist)}/${encodeURIComponent(a.name)}`;
-                    return `${rank}.\u2004\u2005**[${a.name}](${url})\u200E** by **${artist}** - **${parseInt(a.playcount).toLocaleString()}** plays`;
+                    
+                    if (isBillboard) {
+                        return getBillboardLine(rank, null, a.name, artist, parseInt(a.playcount), url);
+                    } else {
+                        return `\u2005${rank}.\u2004\u2005**[${a.name}](${url})\u200E** by **${artist}** - **${parseInt(a.playcount).toLocaleString()}** plays`;
+                    }
                 }).join('\n');
 
-                builder.addText(`### Top ${timeSettings.description} Albums for ${userSettings.displayName}\n${list}`);
-                builder.addText(`-# Page ${page}/${totalPages} - ${albums.length} total albums`);
+                let thumbnail = null;
+                if (page === 1 && albums.length > 0 && !isBillboard) {
+                    try {
+                        const top = albums[0];
+                        const meta = await TrackResolverService.resolveAlbum(top.artist.name, top.name);
+                        thumbnail = meta.artworkUrl;
+                    } catch {}
+                }
+
+                const content = `### Top ${timeSettings.description} Albums for ${userSettings.displayName}\n${list}\n\n-# Page ${page}/${totalPages} - ${albums.length} total albums`;
+                
+                if (thumbnail) {
+                    builder.addThumbnail(thumbnail, content);
+                } else {
+                    builder.addText(content);
+                }
 
                 if (totalPages > 1) {
                     builder.addRow([
@@ -107,7 +143,7 @@ export default class TopAlbumsCommand extends BaseCommand {
                 return builder.build();
             };
 
-            const initialPayload = generatePayload(currentPage);
+            const initialPayload = await generatePayload(currentPage);
             const message = isSlash 
                 ? await interactionOrMessage.editReply(initialPayload)
                 : await interactionOrMessage.channel.send(initialPayload);
@@ -121,7 +157,7 @@ export default class TopAlbumsCommand extends BaseCommand {
                 collector.on('collect', async (i: any) => {
                     if (i.customId === 'paginator_prev') currentPage = Math.max(1, currentPage - 1);
                     else if (i.customId === 'paginator_next') currentPage = Math.min(totalPages, currentPage + 1);
-                    await i.update(generatePayload(currentPage));
+                    await i.update(await generatePayload(currentPage));
                 });
             }
 

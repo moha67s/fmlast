@@ -19,6 +19,10 @@ export default class StreakCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         const query = isSlash 
             ? interactionOrMessage.options.getString('query') || '' 
             : (args ? args.join(' ') : '');
@@ -81,7 +85,7 @@ export default class StreakCommand extends BaseCommand {
             }
 
             // 5. Build Response
-            const builder = new ComponentsV2().setAccent(0x5d010b);
+            const builder = new ComponentsV2().setAccent(embedColor);
             
             if (artistStreak <= 1 && trackStreak <= 1 && albumStreak <= 1) {
                 builder.addText(`### No active streak found for ${userSettings.displayName}`);

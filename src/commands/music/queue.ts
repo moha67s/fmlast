@@ -13,6 +13,7 @@ export default class QueueCommand extends BaseCommand {
         .setDescription('Display the current music queue');
 
     async execute(interactionOrMessage: any, isSlash = false, args: string[] = []): Promise<void> {
+
         const guildId = interactionOrMessage.guildId;
         if (!guildId) return;
 

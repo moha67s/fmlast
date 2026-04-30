@@ -14,6 +14,7 @@ export default class LoginCommand extends BaseCommand {
         .setDescription('Link your Last.fm account for private stats');
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+
         if (!isSlash) {
             try {
                 (interactionOrMessage.channel as TextChannel).sendTyping();
@@ -31,7 +32,7 @@ export default class LoginCommand extends BaseCommand {
         }
 
         const payload = new ComponentsV2()
-            .setAccent(0x5865f2) // Blurple
+            .setAccent(0x5865F2) // Blurple
             .addText(content)
             .addRow([
                 {

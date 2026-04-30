@@ -21,6 +21,7 @@ export default class PixelGuessCommand extends BaseCommand {
     private pixelFactors = [0.015, 0.04, 0.10, 0.22]; // Level 0, 1, 2, 3
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -101,7 +102,7 @@ export default class PixelGuessCommand extends BaseCommand {
             if (!skipStartPrompt) {
                 const startContent = `### 🎨 PIXEL GUESS\nReady to guess an album from <@${discordId}>'s collection?\n**Click the button below to start.**`;
                 const startPayload = new ComponentsV2()
-                    .setAccent(0x5865f2)
+                    .setAccent(0x5865F2)
                     .addText(startContent)
                     .addAction("-# Album Guessing Game", {
                         type: 2,
@@ -163,7 +164,7 @@ export default class PixelGuessCommand extends BaseCommand {
             if (hintsUsed >= 3) hintText += `\n- **Final Hint:** Name starts with \`${data.albumName[0].toUpperCase()}\``;
 
             const payload = new ComponentsV2()
-                .setAccent(0x2b2d31)
+                .setAccent(0x5865F2)
                 .addText(hintText)
                 .addFullImage(`attachment://${attachment.name}`);
 
@@ -224,7 +225,7 @@ export default class PixelGuessCommand extends BaseCommand {
             GameManager.endGame(channel.id);
             if (reason === 'solved' || solved) {
                 const resultPayload = new ComponentsV2()
-                    .setAccent(0x4ade80)
+                    .setAccent(0x5865F2)
                     .addText(`🎉 **CORRECT!** Congratulations **${winner.displayName}**!\nThe album was **${data.albumName}** by **${data.artistName}**.`)
                     .addFullImage(data.artworkUrl)
                     .addAction("-# Another round?", {
@@ -241,7 +242,7 @@ export default class PixelGuessCommand extends BaseCommand {
 
             } else {
                 const resultPayload = new ComponentsV2()
-                    .setAccent(0xf04444)
+                    .setAccent(0x5865F2)
                     .addText(`⏰ **Time is up!**\nThe correct answer was **${data.albumName}** by **${data.artistName}**.`)
                     .addFullImage(data.artworkUrl)
                     .addAction("-# Try again?", {

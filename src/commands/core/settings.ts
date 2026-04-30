@@ -13,6 +13,7 @@ export default class SettingsCommand extends BaseCommand {
         .setDescription('Configure your personal bot settings');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const user = isSlash ? interactionOrMessage.user : interactionOrMessage.author;
         const guild = interactionOrMessage.guild;
 
@@ -31,7 +32,7 @@ export default class SettingsCommand extends BaseCommand {
         const lfmUrl = `https://last.fm/user/${encodeURIComponent(lfmAccount)}`;
 
         const builder = new ComponentsV2()
-            .setAccent(0x5865f2) // hsla(218, 100%, 63.3%, 1) corresponds to Blurple-ish
+            .setAccent(0x5865F2) // hsla(218, 100%, 63.3%, 1) corresponds to Blurple-ish
             .addText(`## bot user settings — ${user.displayName}`)
             .addSeparator()
             .addText(`Connected with Last.fm account [${lfmAccount}](${lfmUrl}). Use \`/login\` to change.`)

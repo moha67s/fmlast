@@ -36,6 +36,7 @@ export default class BlindGuessCommand extends BaseCommand {
     }
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -105,7 +106,7 @@ export default class BlindGuessCommand extends BaseCommand {
                     `**Click the button below to start.**`;
 
                 const startPayload = new ComponentsV2()
-                    .setAccent(0x5865f2) // Blurple
+                    .setAccent(0x5865F2) // Blurple
                     .addText(startContent)
                     .addAction("-# Snippet Guess Game", {
                         type: 2,
@@ -136,7 +137,7 @@ export default class BlindGuessCommand extends BaseCommand {
                 collector.on('end', async (collected: any) => {
                     if (collected.size === 0) {
                         const timeoutPayload = new ComponentsV2()
-                            .setAccent(0xf04444)
+                            .setAccent(0x5865F2)
                             .addText(`### 🎧 BLIND GUESS\n❌ **Game session timed out.**`)
                             .build();
                         if (isSlash) await interactionOrMessage.editReply(timeoutPayload);
@@ -185,7 +186,7 @@ export default class BlindGuessCommand extends BaseCommand {
             `**Guess the name to win.**`;
 
         const progressPayload = new ComponentsV2()
-            .setAccent(0x2b2d31)
+            .setAccent(0x5865F2)
             .addText(progressContent)
             .build();
 

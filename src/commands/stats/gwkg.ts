@@ -3,6 +3,7 @@ import { prisma } from '../../database/client';
 import { SlashCommandBuilder } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { LastFM } from '../../services/api/LastFM';
+import { SettingService } from '../../services/bot/SettingService';
 
 export default class GlobalWhoKnowsGenreCommand extends BaseCommand {
     name = 'gwkg';
@@ -19,6 +20,10 @@ export default class GlobalWhoKnowsGenreCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         let genreName = isSlash 
             ? interactionOrMessage.options.getString('genre') || '' 
             : (args ? args.join(' ') : '');
@@ -80,7 +85,7 @@ export default class GlobalWhoKnowsGenreCommand extends BaseCommand {
             const totalPages = Math.ceil(leaders.length / perPage) || 1;
 
             const generatePayload = (page: number) => {
-                const builder = new ComponentsV2().setAccent(0x5d010b);
+                const builder = new ComponentsV2().setAccent(embedColor);
                 const start = (page - 1) * perPage;
                 const slice = leaders.slice(start, start + perPage);
 

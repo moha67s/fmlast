@@ -124,11 +124,7 @@ export class IdResolutionService {
      * Resolve all IDs for a batch of scrobbles efficiently.
      * Reduces network roundtrips drastically (from N queries to ~6-10 queries).
      */
-    static async resolveBatch(combos: string[], l1Cache?: { 
-        artists: Map<string, string>, 
-        tracks: Map<string, string>, 
-        albums: Map<string, string> 
-    }) {
+    static async resolveBatch(combos: string[], l1Cache?: any) {
         console.log(`[IdRes] resolveBatch START — ${combos.length} unique items`);
         const results = new Map<string, { artistId: string, trackId: string, albumId: string | null }>();
         const uniqueArtists = new Set<string>();

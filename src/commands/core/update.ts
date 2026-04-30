@@ -15,6 +15,7 @@ export default class UpdateCommand extends BaseCommand {
         .setDescription('Force a sync and heal database playcount gaps');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         if (!isSlash) {
             try {
                 (interactionOrMessage.channel as TextChannel).sendTyping();
@@ -87,7 +88,7 @@ export default class UpdateCommand extends BaseCommand {
             }
 
             // 4. Update Success
-            const successBuilder = new ComponentsV2().setAccent(0x00ff00);
+            const successBuilder = new ComponentsV2().setAccent(0x8050ff);
             successBuilder.addText(`✅ **Sync & Healing Complete**\n\n- Triggered background indexing for the last 24h.\n- Reconciled **${topArtists.length}** artists and **${topTracks.length}** tracks.\n- Playcount gaps for your top music have been repaired.`);
             
             if (isSlash) await interactionOrMessage.editReply(successBuilder.build());

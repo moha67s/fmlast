@@ -20,6 +20,7 @@ export default class TimelineMasterCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const targetUser = await resolveTargetUser(interactionOrMessage, isSlash);
         const targetUserId = targetUser.id;
@@ -126,7 +127,7 @@ export default class TimelineMasterCommand extends BaseCommand {
                         await i.deferUpdate();
 
                         const winPayload = new ComponentsV2()
-                            .setAccent(0x4ade80)
+                            .setAccent(0x818cf8)
                             .addText(`🏅 **CHRONOLOGY CLEARED!**\n**${i.user.displayName}** successfully sorted the timeline!`)
                             .addSeparator()
                             .addText(`📅 **${sorted[0].year}**: ${sorted[0].name}`)
@@ -154,7 +155,7 @@ export default class TimelineMasterCommand extends BaseCommand {
                 GameManager.endGame(channel.id);
                 if (reason === 'time') {
                     const timeoutPayload = new ComponentsV2()
-                        .setAccent(0xf04444)
+                        .setAccent(0x818cf8)
                         .addText(`⏰ **TIME IS UP!**\nThe timeline has collapsed.`)
                         .addSeparator()
                         .addText(`**The correct order was:**`)

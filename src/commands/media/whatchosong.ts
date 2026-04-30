@@ -39,6 +39,7 @@ export default class WhatchosongCommand extends BaseCommand {
     );
 
   async execute(interactionOrMessage: any, isSlash = false, args?: string[]) {
+
     const isPrefix = !isSlash;
     if (isPrefix) {
       try {
@@ -189,7 +190,7 @@ export default class WhatchosongCommand extends BaseCommand {
       const safeTrack = trackTitle.substring(0, 35);
 
       const payload = new ComponentsV2()
-        .setAccent(0xffcc00) // Genius Yellow
+        .setAccent(0x5865f2) // Genius Yellow
         .addMedia(cdnUrl || thumbnail, `${trackTitle} by ${artistName}`)
         .addSeparator();
 

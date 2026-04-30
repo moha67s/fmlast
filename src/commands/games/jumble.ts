@@ -84,6 +84,7 @@ export default class JumbleCommand extends BaseCommand {
     }
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -147,7 +148,7 @@ export default class JumbleCommand extends BaseCommand {
                     `**Click the button below to start.**`;
 
                 const startPayload = new ComponentsV2()
-                    .setAccent(0xffb703)
+                    .setAccent(0x5865F2)
                     .addText(startContent)
                     .addAction("-# Jumble Game", {
                         type: 2,
@@ -178,7 +179,7 @@ export default class JumbleCommand extends BaseCommand {
                 collector.on('end', async (collected: any) => {
                     if (collected.size === 0) {
                         const timeoutPayload = new ComponentsV2()
-                            .setAccent(0xf04444)
+                            .setAccent(0x5865F2)
                             .addText(`### 🧩 JUMBLE WORD\n❌ **Game session timed out.**`)
                             .build();
                         if (isSlash) await interactionOrMessage.editReply(timeoutPayload);
@@ -254,7 +255,7 @@ export default class JumbleCommand extends BaseCommand {
             (targetArtist ? `*by ${targetArtist}*` : ``);
 
         const progressPayload = new ComponentsV2()
-            .setAccent(0x2b2d31)
+            .setAccent(0x5865F2)
             .addText(progressContent)
             .build();
 

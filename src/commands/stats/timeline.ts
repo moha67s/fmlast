@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { AttachmentBuilder, SlashCommandBuilder, TextChannel, ChannelType } from 'discord.js';
 import { Spotify } from '../../services/api/Spotify';
@@ -101,6 +102,10 @@ export default class TimelineCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         if (!isSlash) {
             try { (interactionOrMessage.channel as TextChannel).sendTyping(); } catch { }
         }
@@ -320,7 +325,7 @@ export default class TimelineCommand extends BaseCommand {
             ];
 
             const contentText = contentLines.join('\n');
-            const builder = new ComponentsV2().setAccent(0x8050ff);
+            const builder = new ComponentsV2().setAccent(embedColor);
 
             if (cdnUrl) {
                 builder.addMedia(cdnUrl, `${displayNameText}'s music timeline`)

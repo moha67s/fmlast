@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
@@ -27,13 +28,17 @@ export default class FriendWhoKnowsAlbumCommand extends BaseCommand {
         .addUserOption((o: any) => o.setName('user').setDescription('Target user').setRequired(false));
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         let searchQuery = args?.join(' ') || '';
         let artistName = '';
         let albumName = '';
 
         const targetUser = await resolveTargetUser(interactionOrMessage, isSlash);
         const userId = targetUser.id;
-        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        
         
         // Remove mention from searchQuery if it was a message
         if (!isSlash && searchQuery) {
@@ -188,7 +193,7 @@ export default class FriendWhoKnowsAlbumCommand extends BaseCommand {
         let content = `### [${titleDisplay} among ${targetUser.displayName || targetUser.username}'s Friends](${fmLink})\n${topDesc}`;
         
         const builder = new ComponentsV2()
-            .setAccent(0xffb84d);
+            .setAccent(embedColor);
             
         if (thumbnail) {
             builder.addThumbnail(thumbnail, content);

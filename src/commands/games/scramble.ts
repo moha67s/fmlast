@@ -19,6 +19,7 @@ export default class ScrambleCommand extends BaseCommand {
     private gridSize = 3;
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -78,7 +79,7 @@ export default class ScrambleCommand extends BaseCommand {
 
             if (!skipStartPrompt) {
                 const startPayload = new ComponentsV2()
-                    .setAccent(0x5865f2)
+                    .setAccent(0x5865F2)
                     .addText(`### 🧩 COVER SCRAMBLE\nReady to solve an album puzzle from <@${discordId}>'s collection?\n**Identify the artwork as the pieces move back to their original spots!**`)
                     .addAction("-# Puzzle Difficulty: 3x3", {
                         type: 2,
@@ -172,7 +173,7 @@ export default class ScrambleCommand extends BaseCommand {
             if (hintStage >= 2) hintText += `\n- **Solving...** (${Math.round(hintStage * 33)}% of pieces are now in place)`;
 
             const payload = new ComponentsV2()
-                .setAccent(0x2b2d31)
+                .setAccent(0x5865F2)
                 .addText(hintText)
                 .addFullImage(`attachment://${attachment.name}`);
 

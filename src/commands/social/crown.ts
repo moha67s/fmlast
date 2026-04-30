@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
 import { CrownService } from '../../services/bot/CrownService';
@@ -16,6 +17,10 @@ export default class CrownCommand extends BaseCommand {
         .addStringOption((opt: any) => opt.setName('artist').setDescription('The artist to check').setRequired(true));
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         if (!isSlash) {
             try {
                 (interactionOrMessage.channel as TextChannel).sendTyping();
@@ -52,7 +57,7 @@ export default class CrownCommand extends BaseCommand {
         const crown = await CrownService.getArtistCrown(guildId, artistName);
         const history = await CrownService.getHistory(guildId, artistName);
 
-        const builder = new ComponentsV2().setAccent(0x5d010b);
+        const builder = new ComponentsV2().setAccent(embedColor);
         
         if (!crown) {
             builder.addText(`### Crown for ${artistName}!\n❌ No one in this server has claimed the crown for **${artistName}** yet (20 plays required).`);

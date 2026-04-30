@@ -13,6 +13,7 @@ export default class TrackInfoCommand extends BaseCommand {
         .setDescription(this.description);
 
     async execute(interaction: any) {
+
         if (!interaction.guildId) return;
         const queue = QueueManager.getQueue(interaction.guildId);
         
@@ -25,7 +26,7 @@ export default class TrackInfoCommand extends BaseCommand {
         const pos = player ? player.position : 0;
         
         const builder = new ComponentsV2()
-            .setAccent(0x1DB954)
+            .setAccent(0x5865F2)
             .addThumbnail(track.artworkUrl || track.thumbnail,
                 `### ℹ️ Track Details\n` +
                 `**Title:** [${track.trackTitle || track.title}](${track.url})\n` +

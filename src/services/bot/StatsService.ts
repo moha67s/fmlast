@@ -112,4 +112,30 @@ export class StatsService {
         `;
         return results;
     }
+    /**
+     * Fetches playcount over time for an artist, album, or track.
+     */
+    static async getPlaycountOverTime(userId: string, period: 'month' | 'year', filters: { artist?: string; album?: string; track?: string }): Promise<{ period_start: Date; playcount: number }[]> {
+        const conditions = [`user_id = '${userId}'`];
+        
+        // Escape single quotes for raw queries manually
+        if (filters.artist) conditions.push(`artist_name ILIKE '${filters.artist.replace(/'/g, "''")}'`);
+        if (filters.album) conditions.push(`album_name ILIKE '${filters.album.replace(/'/g, "''")}'`);
+        if (filters.track) conditions.push(`track_name ILIKE '${filters.track.replace(/'/g, "''")}'`);
+
+        const whereClause = conditions.join(' AND ');
+
+        // Prisma doesn't support dynamic variables in $queryRaw for identifiers/complex clauses,
+        // so we use $queryRawUnsafe here for the dynamic WHERE clause.
+        const query = `
+            SELECT DATE_TRUNC('${period}', time_played) as period_start, CAST(COUNT(*) AS INTEGER) as playcount
+            FROM user_plays
+            WHERE ${whereClause}
+            GROUP BY 1
+            ORDER BY 1 ASC
+        `;
+
+        const results: any[] = await prisma.$queryRawUnsafe(query);
+        return results;
+    }
 }

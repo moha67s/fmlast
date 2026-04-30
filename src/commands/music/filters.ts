@@ -49,6 +49,7 @@ export default class FiltersCommand extends BaseCommand {
     };
 
     async execute(interactionOrMessage: any, isSlash = false, args: string[] = []): Promise<void> {
+
         const guildId = interactionOrMessage.guildId!;
         
         let type: string | null = null;
@@ -61,7 +62,7 @@ export default class FiltersCommand extends BaseCommand {
         if (!type) {
             // Show menu
             const builder = new ComponentsV2()
-                .setAccent(0x1DB954)
+                .setAccent(0x5865F2)
                 .addText(`### 🎛️ Audio Filters\nSelect a filter from the menu below to apply it to the current track.`)
                 .addRow([{
                     type: 3,

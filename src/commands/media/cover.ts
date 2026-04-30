@@ -204,6 +204,9 @@ export default class CoverCommand extends BaseCommand {
       }
 
       // ── 1. CHECK RENDER CACHE (Personalized) ──
+      const userColorHex = (dbUser?.settings as any)?.embedColor || "#d51007";
+      const userColorInt = parseInt(userColorHex.replace('#', ''), 16);
+
       cdnUrl = await RenderCacheService.getCachedImage('track_info', artist, trackName, targetUsername || undefined);
 
       if (!cdnUrl) {
@@ -214,7 +217,7 @@ export default class CoverCommand extends BaseCommand {
               artistName: artist,
               albumName: album,
               badgeText: coverSource.toUpperCase(),
-              accentColor: "#d51007",
+              accentColor: userColorHex,
               artistScrobbles: artistScrobbles ? Number(artistScrobbles).toLocaleString() : null,
               trackScrobbles: trackScrobbles ? Number(trackScrobbles).toLocaleString() : null,
               hasStats: !!(artistScrobbles || trackScrobbles)
@@ -260,7 +263,7 @@ export default class CoverCommand extends BaseCommand {
       if (links.youtube) buttons.push({ type: 2, style: 5, url: links.youtube, emoji: { id: "1496297072201040094", name: "yt" } });
 
       const payload = new ComponentsV2()
-        .setAccent(0xff0000)
+        .setAccent(userColorInt)
         .addMedia(cdnUrl, `${trackName} by ${artist}`)
         .addSeparator();
 

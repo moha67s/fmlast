@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
@@ -29,6 +30,10 @@ export default class FMCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         if (!isSlash) {
             try {
                 (interactionOrMessage.channel as TextChannel).sendTyping();
@@ -83,7 +88,7 @@ export default class FMCommand extends BaseCommand {
             const albumUrl = `https://www.last.fm/music/${encodeURIComponent(artist).replace(/%20/g, '+')}/${encodeURIComponent(album).replace(/%20/g, '+')}`;
             const content = `### [${track.name}](${track.url})\n**${artist}** • [${album}](${albumUrl})\n\n-# ${scrobbles} total scrobbles`;
 
-            const builder = new ComponentsV2().setAccent(0x5865f2);
+            const builder = new ComponentsV2().setAccent(embedColor);
 
             const files = [];
             if (typeof cover === 'string' && cover.length > 0) {

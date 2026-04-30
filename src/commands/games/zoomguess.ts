@@ -21,6 +21,7 @@ export default class ZoomGuessCommand extends BaseCommand {
     private zoomScales = [10, 5, 2.5, 1.25]; // Initial (tiny crop) -> 3 hints zooming out
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -90,7 +91,7 @@ export default class ZoomGuessCommand extends BaseCommand {
 
             if (!skipStartPrompt) {
                 const startPayload = new ComponentsV2()
-                    .setAccent(0x5865f2)
+                    .setAccent(0x5865F2)
                     .addText(`### 🔍 ZOOM GUESS\nReady to guess an album from <@${discordId}>'s collection?\n**The camera starts super close. Zoom out to win!**`)
                     .addAction("-# Zoom Level: 10x", {
                         type: 2,
@@ -155,7 +156,7 @@ export default class ZoomGuessCommand extends BaseCommand {
             if (hintsUsed >= 3) hintText += `\n- **Final Hint:** Album begins with \`${data.albumName[0].toUpperCase()}\``;
 
             const payload = new ComponentsV2()
-                .setAccent(0x2b2d31)
+                .setAccent(0x5865F2)
                 .addText(hintText)
                 .addFullImage(`attachment://${attachment.name}`);
 

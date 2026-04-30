@@ -12,6 +12,7 @@ export default class HelpCommand extends BaseCommand {
         .setDescription('Display all available commands and their usage');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const user = isSlash ? interactionOrMessage.user : interactionOrMessage.author;
 
         const categories = [
@@ -114,7 +115,7 @@ export default class HelpCommand extends BaseCommand {
 
         const generateMainPayload = () => {
             const builder = new ComponentsV2()
-                .setAccent(0x5865f2)
+                .setAccent(0x5865F2)
                 .addText(`## ✦ her — Command Guide`)
                 .addSeparator()
                 .addText(`Welcome to **her**, your premium music companion. Select a category from the menu below to explore available commands and their descriptions.`);
@@ -165,7 +166,7 @@ export default class HelpCommand extends BaseCommand {
                 const commandList = category.commands.map(cmd => `\`.${cmd.name}\` — ${cmd.desc}`).join('\n');
                 
                 const catBuilder = new ComponentsV2()
-                    .setAccent(0x5865f2)
+                    .setAccent(0x5865F2)
                     .addText(`## ${category.name}`)
                     .addSeparator()
                     .addText(`${category.description}\n\n${commandList}`);

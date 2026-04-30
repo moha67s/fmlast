@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
@@ -27,11 +28,15 @@ export default class FriendWhoKnowsCommand extends BaseCommand {
         .addUserOption((o: any) => o.setName('user').setDescription('Target user').setRequired(false));
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         let artistName = args?.join(' ') || '';
 
         const targetUser = await resolveTargetUser(interactionOrMessage, isSlash);
         const userId = targetUser.id;
-        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        
         
         // Remove mention from artistName if it was a message
         if (!isSlash && artistName) {
@@ -137,7 +142,7 @@ export default class FriendWhoKnowsCommand extends BaseCommand {
         }
 
         const builder = new ComponentsV2()
-            .setAccent(0xffb84d); // Custom accent for friends
+            .setAccent(embedColor); // Custom accent for friends
             
         if (thumbnail) {
             builder.addThumbnail(thumbnail, content);

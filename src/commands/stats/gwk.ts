@@ -4,6 +4,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { IdResolutionService } from '../../services/bot/IdResolutionService';
 import { LastFM } from '../../services/api/LastFM';
+import { SettingService } from '../../services/bot/SettingService';
 
 export default class GlobalWhoKnowsCommand extends BaseCommand {
     name = 'gwk';
@@ -20,6 +21,10 @@ export default class GlobalWhoKnowsCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         let artistName = isSlash 
             ? interactionOrMessage.options.getString('artist') || '' 
             : (args ? args.join(' ') : '');
@@ -75,7 +80,7 @@ export default class GlobalWhoKnowsCommand extends BaseCommand {
             const totalPages = Math.ceil(knowers.length / perPage) || 1;
 
             const generatePayload = (page: number) => {
-                const builder = new ComponentsV2().setAccent(0x5d010b);
+                const builder = new ComponentsV2().setAccent(embedColor);
                 const start = (page - 1) * perPage;
                 const slice = knowers.slice(start, start + perPage);
 

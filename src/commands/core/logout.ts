@@ -13,6 +13,7 @@ export default class LogoutCommand extends BaseCommand {
         .setDescription('Unlink your Last.fm account from the bot');
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+
         if (!isSlash) {
             try {
                 (interactionOrMessage.channel as TextChannel).sendTyping();
@@ -48,7 +49,7 @@ export default class LogoutCommand extends BaseCommand {
         });
 
         const payload = new ComponentsV2()
-            .setAccent(0x5865f2) // Blurple
+            .setAccent(0x5865F2) // Blurple
             .addText(`✅ **Successfully Logged Out**\nYour Last.fm account (**${dbUser.lastfmUsername}**) has been unlinked from the bot.`)
             .build();
 

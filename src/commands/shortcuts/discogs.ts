@@ -34,6 +34,7 @@ export default class DiscogsCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args: string[] = []): Promise<void> {
+
         let sub = '';
         let query = '';
 

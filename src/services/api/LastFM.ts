@@ -166,6 +166,15 @@ export class LastFM {
         return data.recenttracks?.track as any[] || [];
     }
 
+    /** Get loved tracks */
+    static async getLovedTracks(username: string, limit = 50, page = 1, sessionKey?: string | null) {
+        const data = await this.request('user.getLovedTracks', username, { limit: String(limit), page: String(page) }, sessionKey);
+        return {
+            tracks: (Array.isArray(data.lovedtracks?.track) ? data.lovedtracks?.track : (data.lovedtracks?.track ? [data.lovedtracks?.track] : [])) as any[],
+            meta: data.lovedtracks?.['@attr'] as { page: string; total: string; user: string; perPage: string; totalPages: string; } | undefined
+        };
+    }
+
     /** Get paginated recent tracks for background indexing */
     static async getRecentTracksPaginated(username: string, limit = 200, page = 1, sessionKey?: string | null, forceAuth = false, fromTimestamp?: number) {
         const payload: any = { limit: String(limit), page: String(page), extended: '0' };
@@ -318,6 +327,18 @@ export class LastFM {
         return data.tracks?.track as any[] || [];
     }
 
+    /** Get top artists for a specific tag */
+    static async getTagTopArtists(tag: string, limit = 50, sessionKey?: string | null) {
+        const data = await this.request('tag.getTopArtists', null, { tag, limit: String(limit) }, sessionKey);
+        return data.topartists?.artist as any[] || [];
+    }
+
+    /** Get top albums for a specific tag */
+    static async getTagTopAlbums(tag: string, limit = 50, sessionKey?: string | null) {
+        const data = await this.request('tag.getTopAlbums', null, { tag, limit: String(limit) }, sessionKey);
+        return data.albums?.album as any[] || [];
+    }
+
     /** Get similar tracks for a specific track */
     static async getSimilarTracks(artist: string, track: string, limit = 5, sessionKey?: string | null) {
         const data = await this.request('track.getSimilar', null, { artist, track, limit: String(limit) }, sessionKey);
@@ -367,6 +388,16 @@ export class LastFM {
     /** Scrobble a track */
     static async scrobble(artist: string, track: string, timestamp: number, sessionKey: string, extra: Record<string, string> = {}) {
         return this.request('track.scrobble', null, { artist, track, timestamp: String(timestamp), ...extra }, sessionKey, true, true);
+    }
+
+    /** Love a track */
+    static async love(artist: string, track: string, sessionKey: string) {
+        return this.request('track.love', null, { artist, track }, sessionKey, true, true);
+    }
+
+    /** Unlove a track */
+    static async unlove(artist: string, track: string, sessionKey: string) {
+        return this.request('track.unlove', null, { artist, track }, sessionKey, true, true);
     }
 
     /** 

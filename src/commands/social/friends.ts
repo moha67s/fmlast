@@ -27,6 +27,7 @@ export default class FriendsCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+
         let subcommand = '';
         let targetUser: any = null;
 
@@ -61,7 +62,7 @@ export default class FriendsCommand extends BaseCommand {
                 
                 // Send the interactive request to the channel with ping, or defer reply if slash
                 const builder = new ComponentsV2()
-                    .setAccent(0xffb84d)
+                    .setAccent(0x5865F2)
                     .addText(`### ✉️ Friend Request\n<@${targetUser.id}>, **${author.username}** wants to be your friend on Last.fm!`)
                     .addRow([
                         { type: 2, custom_id: 'friend-accept:' + req.id, label: 'Accept', style: 3 },
@@ -97,7 +98,7 @@ export default class FriendsCommand extends BaseCommand {
                 }
 
                 const builder = new ComponentsV2()
-                    .setAccent(0x2b2d31)
+                    .setAccent(0x5865F2)
                     .addText(`### 🫂 Your Friends\n${desc}`);
 
                 const payload = builder.build();

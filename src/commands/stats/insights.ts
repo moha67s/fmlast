@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
@@ -32,6 +33,10 @@ export default class InsightsCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         if (isSlash) await interactionOrMessage.deferReply();
         else {
             try { interactionOrMessage.channel.sendTyping(); } catch {}
@@ -99,7 +104,10 @@ export default class InsightsCommand extends BaseCommand {
 
             // 2. AI Analysis
             const artistNames = topArtists.map(a => a.name);
-            const trackNames = topTracks.map(t => `${t.name} by ${t.artist.name}`);
+            const trackNames = topTracks.map(t => {
+                const artist = t.artistName || t.artist?.name || t.artist?.['#text'] || 'Unknown';
+                return `${t.name} by ${artist}`;
+            });
             
             const personaText = await OpenAiService.getInstance().generateDetailedPersona(
                 artistNames, 
@@ -121,7 +129,7 @@ export default class InsightsCommand extends BaseCommand {
             };
 
             const payload = new ComponentsV2()
-                .setAccent(0xffffff)
+                .setAccent(embedColor)
                 .addText(`## 🤖 Musical Persona Analysis`)
                 .addText(`### ${displayName} — ${periodLabels[lfmPeriod] || 'Custom'}\n\n${personaText}`)
                 .addSeparator()

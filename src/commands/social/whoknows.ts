@@ -9,6 +9,7 @@ import { CrownService } from '../../services/bot/CrownService';
 import { config } from '../../../config';
 import { resolveTargetUser } from '../../utils/userResolver';
 import { TrackResolverService } from '../../services/api/TrackResolverService';
+import { SettingService } from '../../services/bot/SettingService';
 
 interface LocalUser {
     id: string;
@@ -57,6 +58,9 @@ export default class WhoKnowsCommand extends BaseCommand {
 
         const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
         const guild = interactionOrMessage.guild;
+
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
 
         if (!guild) {
             const reply = '❌ This command can only be used in a server.';
@@ -225,7 +229,7 @@ export default class WhoKnowsCommand extends BaseCommand {
         }
 
         const builder = new ComponentsV2()
-            .setAccent(0x4f010b);
+            .setAccent(embedColor);
 
         if (thumbnail) {
             builder.addThumbnail(thumbnail, content);

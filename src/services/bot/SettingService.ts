@@ -28,6 +28,8 @@ export interface UserSettings {
     isDifferentUser: boolean;
     displayName: string;
     searchValue: string;
+    /** The user's custom embed accent color as an integer, or the default */
+    accentColor: number;
 }
 
 /**
@@ -44,13 +46,19 @@ export class SettingService {
      * Parse time period from options string.
      */
     static getTimePeriod(options: string, defaultPeriod: TimePeriod = TimePeriod.Weekly): TimeSettings {
+        const end = new Date();
+        const start = new Date(Date.now() - 7 * 86400 * 1000); // 7 days ago default
+        
         const settings: TimeSettings = {
             apiParameter: defaultPeriod,
             description: 'Weekly',
             altDescription: 'last week',
             useCustomTimePeriod: false,
             searchValue: options || '',
-            endDateTime: new Date()
+            startDateTime: start,
+            endDateTime: end,
+            timeFrom: Math.floor(start.getTime() / 1000),
+            timeUntil: Math.floor(end.getTime() / 1000)
         };
 
         if (!options) return settings;
@@ -161,6 +169,19 @@ export class SettingService {
                 settings.altDescription = p.alt;
                 settings.playDays = p.days;
                 settings.searchValue = options.replace(new RegExp(`\\b${word}\\b`, 'gi'), '').trim();
+
+                // Assign actual Date objects for native DB querying (skip for 'overall')
+                if (p.api !== 'overall') {
+                    const start = new Date(Date.now() - p.days * 86400 * 1000);
+                    const end = new Date();
+                    settings.startDateTime = start;
+                    settings.endDateTime = end;
+                    settings.timeFrom = Math.floor(start.getTime() / 1000);
+                    settings.timeUntil = Math.floor(end.getTime() / 1000);
+                    // Explicitly flag it so our commands treat it as a filterable DB range
+                    // but we keep `useCustomTimePeriod` false to preserve 'description' formatting
+                }
+
                 return settings;
             }
         }
@@ -176,7 +197,8 @@ export class SettingService {
             targetUser: requester,
             isDifferentUser: false,
             displayName: 'You',
-            searchValue: options || ''
+            searchValue: options || '',
+            accentColor: SettingService.resolveAccentColor(requester)
         };
 
         if (!options) return settings;
@@ -196,6 +218,7 @@ export class SettingService {
                 settings.isDifferentUser = user.id !== requester.id;
                 settings.displayName = user.lastfmUsername || 'User';
                 settings.searchValue = words.slice(1).join(' ');
+                settings.accentColor = SettingService.resolveAccentColor(user);
                 return settings;
             }
         }
@@ -211,6 +234,7 @@ export class SettingService {
                 settings.isDifferentUser = true;
                 settings.displayName = user.lastfmUsername!;
                 settings.searchValue = words.slice(1).join(' ');
+                settings.accentColor = SettingService.resolveAccentColor(user);
                 return settings;
             }
         }
@@ -235,5 +259,21 @@ export class SettingService {
         }
 
         return { amount: defaultValue, searchValue: options };
+    }
+
+    /** Default accent color used when the user hasn't set a custom one */
+    static readonly DEFAULT_ACCENT = 0x0a0a0b;
+
+    /**
+     * Resolve a user's accent color from their DB settings.
+     * Returns the user's custom embedColor or the default.
+     */
+    static resolveAccentColor(user: DBUser): number {
+        const hex = (user.settings as any)?.embedColor;
+        if (hex && typeof hex === 'string') {
+            const parsed = parseInt(hex.replace('#', ''), 16);
+            if (!isNaN(parsed)) return parsed;
+        }
+        return SettingService.DEFAULT_ACCENT;
     }
 }

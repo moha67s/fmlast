@@ -16,6 +16,7 @@ export default class ChartClashCommand extends BaseCommand {
         .setDescription('A 1v1 competitive trivia battle! Who has more plays or which is older? ⚔️');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -91,7 +92,7 @@ export default class ChartClashCommand extends BaseCommand {
             const attachment = new AttachmentBuilder(buffer, { name: `clash_${Date.now()}.webp` });
 
             const payload = new ComponentsV2()
-                .setAccent(0xffb02e)
+                .setAccent(0x5865F2)
                 .addText(`### ⚔️ CHART CLASH\n${question}`)
                 .addText(`**🅰️ | ${itemA.name}**\n**🅱️ | ${itemB.name}**`)
                 .addFullImage(`attachment://${attachment.name}`)
@@ -129,7 +130,7 @@ export default class ChartClashCommand extends BaseCommand {
                     await i.deferUpdate();
 
                     const winPayload = new ComponentsV2()
-                        .setAccent(0x4ade80)
+                        .setAccent(0x5865F2)
                         .addText(`⚔️ **CLASH OVER!**\n🏆 **${i.user.displayName}** was the fastest and got it right!`)
                         .addSeparator()
                         .addText(`🅰️ **${itemA.name}**: ${mode === 'PLAYS' ? `\`${itemA.playcount}\` plays` : `Released \`${itemA.year}\``}`)
@@ -154,7 +155,7 @@ export default class ChartClashCommand extends BaseCommand {
                 GameManager.endGame(channel.id);
                 if (reason === 'time') {
                     const timeoutPayload = new ComponentsV2()
-                        .setAccent(0xf04444)
+                        .setAccent(0x5865F2)
                         .addText(`⏰ **TIME IS UP!**\nNo one was fast enough to win this clash.`)
                         .addSeparator()
                         .addText(`The correct answer was **${answer === 'A' ? itemA.name : itemB.name}**.`)

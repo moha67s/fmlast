@@ -156,6 +156,7 @@ export default class LyricCardCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+
         if (!isSlash) {
             try { (interactionOrMessage.channel as TextChannel).sendTyping(); } catch { }
         }
@@ -290,7 +291,7 @@ export default class LyricCardCommand extends BaseCommand {
             const displayTrack = resolvedTrack || trackSearchName;
             
             const builder = new ComponentsV2()
-                .setAccent(0x1DB954)
+                .setAccent(0x1db954)
                 .addText(`### 🎵 Lyric Card: **${displayTrack}**`)
                 .addText(`By **${displayArtist}**`)
                 .addFullImage((cdnUrl || coverUrl) as string);

@@ -8,24 +8,28 @@ import { LastFM } from '../../services/api/LastFM';
 export default class PaceCommand extends BaseCommand {
     name = 'pace';
     description = 'View your scrobbling pace and projections';
-    aliases = ['p'];
+    aliases = ['pa'];
 
     slashData = new SlashCommandBuilder()
         .setName('pace')
         .setDescription('View scrobbling pace and projections')
-        .addStringOption((opt: any) => 
+        .addStringOption((opt: any) =>
             opt.setName('query')
                 .setDescription('User mention or username')
                 .setRequired(false)
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
-        const query = isSlash 
-            ? interactionOrMessage.options.getString('query') || '' 
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
+        const query = isSlash
+            ? interactionOrMessage.options.getString('query') || ''
             : (args ? args.join(' ') : '');
 
         const author = isSlash ? interactionOrMessage.user : interactionOrMessage.author;
-        
+
         const dbAuthor = await prisma.user.findUnique({ where: { discordId: author.id } });
         if (!dbAuthor) {
             const payload = new ComponentsV2().setAccent(0xff0000).addText('❌ Link your Last.fm first!').build();
@@ -44,7 +48,7 @@ export default class PaceCommand extends BaseCommand {
             const lfmInfo = await LastFM.getUserInfo(targetDbUser.lastfmUsername!, targetDbUser.lastfmSessionKey);
             const totalPlaycount = parseInt(lfmInfo.playcount, 10);
             const registrationUts = parseInt(lfmInfo.registered?.uts || lfmInfo.registered?.['#text'], 10);
-            
+
             if (!registrationUts) {
                 throw new Error("Could not find registration date.");
             }
@@ -60,14 +64,14 @@ export default class PaceCommand extends BaseCommand {
             const milestoneDate = new Date(Date.now() + daysToMilestone * 86400 * 1000);
 
             // 3. Build Response
-            const builder = new ComponentsV2().setAccent(0x5d010b);
+            const builder = new ComponentsV2().setAccent(embedColor);
             builder.addText(`### Scrobbling Pace for ${userSettings.displayName}`);
-            
+
             builder.addText(`📊 **Overall Stats:**`);
             builder.addText(`• Total Scrobbles: **${totalPlaycount.toLocaleString()}**`);
             builder.addText(`• Account Age: **${Math.floor(accountAgeDays).toLocaleString()}** days`);
             builder.addText(`• Average Pace: **${pacePerDay.toFixed(2)}** scrobbles/day`);
-            
+
             builder.addText(`\n🚀 **Projections:**`);
             builder.addText(`• Next Milestone: **${nextMilestone.toLocaleString()}**`);
             builder.addText(`• Remaining: **${remainingToMilestone.toLocaleString()}** scrobbles`);
@@ -76,7 +80,7 @@ export default class PaceCommand extends BaseCommand {
             // Weekly Pace (from DB)
             const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000);
             const weeklyCount = await prisma.userPlay.count({
-                where: { 
+                where: {
                     userId: targetDbUser.id,
                     timePlayed: { gte: sevenDaysAgo }
                 }
@@ -86,7 +90,7 @@ export default class PaceCommand extends BaseCommand {
             builder.addText(`\n📈 **Recent Activity:**`);
             builder.addText(`• Last 7 Days: **${weeklyCount.toLocaleString()}** scrobbles`);
             builder.addText(`• Recent Pace: **${weeklyPace.toFixed(2)}** scrobbles/day`);
-            
+
             if (weeklyPace > pacePerDay) {
                 builder.addText(`🔥 You are scrobbling **${((weeklyPace / pacePerDay - 1) * 100).toFixed(1)}% faster** than your average!`);
             } else {

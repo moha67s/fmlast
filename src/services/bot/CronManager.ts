@@ -262,7 +262,7 @@ async function handleDriftDetection(): Promise<void> {
             const drift = Math.abs(lfmTotal - localTotal);
             const driftPct = (drift / lfmTotal) * 100;
 
-            if (driftPct > 20) {
+            if (driftPct > 5) {
                 LoggerService.warn(
                     `Drift detected for ${user.lastfmUsername}: LFM=${lfmTotal} DB=${localTotal} (${driftPct.toFixed(1)}%)`,
                     'CronManager'

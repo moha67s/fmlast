@@ -19,6 +19,7 @@ export default class LabyrinthCommand extends BaseCommand {
         .setDescription('Identify the song from a cinematic lyric card! 🎤🧩');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const channel = interactionOrMessage.channel as TextChannel;
         const userId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
@@ -89,7 +90,7 @@ export default class LabyrinthCommand extends BaseCommand {
 
             if (!skipStartPrompt) {
                 const startPayload = new ComponentsV2()
-                    .setAccent(0xff0055)
+                    .setAccent(0x5865F2)
                     .addText(`### 🎤 LYRIC LABYRINTH\nReady to guess a song from <@${discordId}>'s universe?\n**I'll show you a cinematic lyric card—you identify the track!**`)
                     .addAction("-# Objective: Guess the Track Name", {
                         type: 2,
@@ -161,7 +162,7 @@ export default class LabyrinthCommand extends BaseCommand {
             if (hintStage >= 2) header += `\n- **Hint:** Revealed the Album!`;
 
             const payload = new ComponentsV2()
-                .setAccent(0x2b2d31)
+                .setAccent(0x5865F2)
                 .addText(header)
                 .addFullImage(`attachment://${attachment.name}`);
 

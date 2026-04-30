@@ -4,6 +4,7 @@ import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { Playlist } from '../../models/Playlist';
 import { MongoService } from '../../database/mongo';
 import { QueueManager } from '../../services/music/QueueManager';
+import { SettingService } from '../../services/bot/SettingService';
 
 export default class PlaylistCommand extends BaseCommand {
     name = 'playlist';
@@ -17,6 +18,7 @@ export default class PlaylistCommand extends BaseCommand {
         .addSubcommand(sub => sub.setName('list').setDescription('List your playlists'));
 
     async execute(interaction: any, isSlash = false, args: string[] = []) {
+
         if (!MongoService.isConnected) {
             return interaction.reply({ content: '❌ MongoDB is not connected. Please ask the owner to provide `MONGODB_URL` in `.env`.', ephemeral: true });
         }
@@ -52,7 +54,7 @@ export default class PlaylistCommand extends BaseCommand {
         }
 
         const menu = new ComponentsV2()
-            .setAccent(0x1DB954)
+            .setAccent(0x5865F2)
             .addText('### 📁 Playlist Manager\nManage your personal music library. Create custom playlists and play them anytime.')
             .addRow([
                 { type: 2, style: 3, custom_id: 'mp-pl-create', label: 'Create New', emoji: '➕' },

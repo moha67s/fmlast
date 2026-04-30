@@ -13,6 +13,7 @@ export default class LyricsCommand extends BaseCommand {
         .setDescription('Get lyrics for the currently playing track');
 
     async execute(interactionOrMessage: any, isSlash = false): Promise<void> {
+
         const guildId = interactionOrMessage.guildId!;
         const textChannel = interactionOrMessage.channel as TextChannel;
 
@@ -33,7 +34,7 @@ export default class LyricsCommand extends BaseCommand {
             // data.text = plain string for unsynced
             
             const builder = new ComponentsV2()
-                .setAccent(0x1DB954);
+                .setAccent(0x5865F2);
 
             if (data.lines && data.lines.length > 0) {
                 // Synced lyrics

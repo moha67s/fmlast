@@ -9,15 +9,44 @@ export class ComponentsV2 {
         components: []
     };
 
-    /** Set the side accent color of the container (Global color strips disabled) */
+    private accentColor?: number;
+
+    /** Set the side accent color of the container */
     setAccent(color: number): this {
-        // this.payload.accent_color = color;
+        this.payload.accent_color = color;
         return this;
     }
 
     /** Set whether the entire container is a spoiler */
     setSpoiler(spoiler: boolean): this {
         this.payload.spoiler = spoiler;
+        return this;
+    }
+
+    /** Set the main image for the container (similar to embed.setImage) */
+    setImage(url: string, description?: string, spoiler = false): this {
+        return this.addFullImage(url, description, spoiler);
+    }
+
+    /** Set a thumbnail for the container */
+    setThumbnail(url: string): this {
+        // Find the first text component (Type 9 with Type 10) or just push a new one
+        const last = this.payload.components[this.payload.components.length - 1];
+        if (last && last.type === 10) {
+            this.payload.components[this.payload.components.length - 1] = {
+                type: 9,
+                components: [last],
+                accessory: { type: 11, media: { url } }
+            };
+        } else if (last && last.type === 9) {
+            last.accessory = { type: 11, media: { url } };
+        } else {
+            this.payload.components.push({
+                type: 9,
+                components: [{ type: 10, content: '\u200B' }],
+                accessory: { type: 11, media: { url } }
+            });
+        }
         return this;
     }
 

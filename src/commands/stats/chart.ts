@@ -298,8 +298,12 @@ export default class ChartCommand extends BaseCommand {
             label: 'Edit'
         };
 
+        const userDb = await prisma.user.findUnique({ where: { id: dbUserId } });
+        const userColorHex = (userDb?.settings as any)?.embedColor || '#d51007';
+        const userColorInt = parseInt(userColorHex.replace('#', ''), 16);
+
         const payload = new ComponentsV2()
-            .setAccent(0xff0000)
+            .setAccent(userColorInt)
             .addMedia(cdnUrl, albumDescriptions)
             .addText(`**[${gridSize}x${gridSize} ${displayName} Chart](https://www.last.fm/user/${username}/library/albums?date_preset=${datePreset}) for ${username}**`)
             .addSeparator()

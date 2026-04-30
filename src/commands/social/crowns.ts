@@ -1,3 +1,4 @@
+import { SettingService } from '../../services/bot/SettingService';
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
 import { CrownService } from '../../services/bot/CrownService';
@@ -17,6 +18,10 @@ export default class CrownsCommand extends BaseCommand {
         .addUserOption((opt: any) => opt.setName('user').setDescription('The user to view crowns for'));
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         if (!isSlash) {
             try {
                 (interactionOrMessage.channel as TextChannel).sendTyping();
@@ -59,7 +64,7 @@ export default class CrownsCommand extends BaseCommand {
         const perPage = 10;
 
         const generatePayload = (crowns: any[], page: number, view: CrownView) => {
-            const builder = new ComponentsV2().setAccent(0x5d010b);
+            const builder = new ComponentsV2().setAccent(embedColor);
             const totalPages = Math.ceil(crowns.length / perPage) || 1;
             const start = (page - 1) * perPage;
             const slice = crowns.slice(start, start + perPage);
@@ -133,7 +138,7 @@ export default class CrownsCommand extends BaseCommand {
         collector.on('end', () => {
             // Disable buttons on timeout
             try {
-                const disabledBuilder = new ComponentsV2().setAccent(0x5d010b);
+                const disabledBuilder = new ComponentsV2().setAccent(embedColor);
                 const totalPages = Math.ceil(crowns.length / perPage) || 1;
                 const start = (currentPage - 1) * perPage;
                 const slice = crowns.slice(start, start + perPage);

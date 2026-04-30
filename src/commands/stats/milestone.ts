@@ -19,6 +19,10 @@ export default class MilestoneCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         const query = isSlash 
             ? interactionOrMessage.options.getString('query') || '' 
             : (args ? args.join(' ') : '');
@@ -80,7 +84,7 @@ export default class MilestoneCommand extends BaseCommand {
             const artistUrl = `https://www.last.fm/music/${encodeURIComponent(p.artistName)}`;
             const trackUrl = `${artistUrl}/_/${encodeURIComponent(p.trackName)}`;
 
-            const builder = new ComponentsV2().setAccent(0x5d010b);
+            const builder = new ComponentsV2().setAccent(embedColor);
             builder.addText(`### Milestone #${num.toLocaleString()} for ${userSettings.displayName}`);
             builder.addText(`🎶 **[${p.trackName}](${trackUrl})** by **[${p.artistName}](${artistUrl})**`);
             if (p.albumName) builder.addText(`💿 From the album *${p.albumName}*`);

@@ -20,6 +20,7 @@ export default class SearchCommand extends BaseCommand {
                 .setRequired(true));
 
     async execute(interactionOrMessage: any, isSlash = false, args: string[] = []): Promise<void> {
+
         const guildId = interactionOrMessage.guildId;
         if (!guildId) return;
 
@@ -59,8 +60,12 @@ export default class SearchCommand extends BaseCommand {
                 value: i.toString()
             }));
 
+            const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+            const dbAuthor = await prisma.user.findUnique({ where: { discordId: authorId } });
+            const embedColor = dbAuthor ? (await import('../../services/bot/SettingService')).SettingService.resolveAccentColor(dbAuthor) : 0x0a0a0b;
+
             const builder = new ComponentsV2()
-                .setAccent(0x5865F2)
+                .setAccent(embedColor)
                 .addText(`## 🔍 Search Results for "${query}"`)
                 .addText(`Select a song from the menu below to add it to the queue.`)
                 .addRow([

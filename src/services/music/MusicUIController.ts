@@ -39,7 +39,7 @@ export class MusicUIController {
             }
         } catch {}
 
-        const ui = this.buildPlaybackUI(guildId, track, 0, false);
+        const ui = await this.buildPlaybackUI(guildId, track, 0, false);
         
         try {
             const msg = await queue.textChannel.send(ui);
@@ -60,7 +60,7 @@ export class MusicUIController {
         if (!track) return;
 
         const elapsed = queue.player ? Math.floor(queue.player.position / 1000) : 0;
-        const ui = this.buildPlaybackUI(guildId, track, elapsed, queue.isPaused);
+        const ui = await this.buildPlaybackUI(guildId, track, elapsed, queue.isPaused);
 
         try {
             await queue.nowPlayingMessage.edit(ui);
@@ -73,7 +73,7 @@ export class MusicUIController {
         }
     }
 
-    private static buildPlaybackUI(guildId: string, track: YoutubeResult, elapsed: number, isPaused: boolean) {
+    private static async buildPlaybackUI(guildId: string, track: YoutubeResult, elapsed: number, isPaused: boolean) {
         const queue = QueueManager.getQueue(guildId);
         const total = track.durationSeconds || 0;
         const progressBar = createProgressBar(elapsed, total);
@@ -94,8 +94,16 @@ export class MusicUIController {
         const artistDisplay = track.artistName || (track.channelTitle || '').replace(' - Topic', '') || 'Unknown Artist';
         const titleDisplay = (track.trackTitle || track.title || 'Unknown Track').replace(/\[.*?\]|\(.*?\)/g, '').trim();
 
+        let embedColor = isPaused ? 0xFFA500 : 0x1DB954;
+        if (!isPaused && track.requesterId) {
+            const { prisma } = await import('../../database/client');
+            const { SettingService } = await import('../bot/SettingService');
+            const dbAuthor = await prisma.user.findUnique({ where: { discordId: track.requesterId } });
+            if (dbAuthor) embedColor = SettingService.resolveAccentColor(dbAuthor);
+        }
+
         const builder = new ComponentsV2()
-            .setAccent(isPaused ? 0xFFA500 : 0x1DB954)
+            .setAccent(embedColor)
             .addThumbnail(coverUrl, 
                 `### 🎵 ${artistDisplay} - ${titleDisplay}${repeatInfo}${autoplayInfo}\n` +
                 `${statsLine ? statsLine.trimStart() + '\n\n' : ''}` +

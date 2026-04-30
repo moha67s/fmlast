@@ -5,6 +5,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { LastfmHealthTracker } from '../../services/bot/LastfmHealthTracker';
+import { triggerDeltaSync } from '../../services/bot/QueueWorker';
 
 export default class RecentTracksCommand extends BaseCommand {
     name = 'recent';
@@ -18,9 +19,18 @@ export default class RecentTracksCommand extends BaseCommand {
             opt.setName('query')
                 .setDescription('User mention/username or amount (e.g. "@user 10")')
                 .setRequired(false)
+        )
+        .addStringOption((opt: any) => 
+            opt.setName('artist')
+                .setDescription('Filter by artist name')
+                .setRequired(false)
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+        const authorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        const authorDb = await prisma.user.findUnique({ where: { discordId: authorId } });
+        const embedColor = authorDb ? SettingService.resolveAccentColor(authorDb) : 0x0a0a0b;
+
         const query = isSlash 
             ? interactionOrMessage.options.getString('query') || '' 
             : (args ? args.join(' ') : '');
@@ -53,29 +63,99 @@ export default class RecentTracksCommand extends BaseCommand {
         else if (!isSlash) await interactionOrMessage.channel.sendTyping();
 
         try {
-            // 3. Fetch Data
-            const recent = await LastFM.getRecentTracksPaginated(
-                targetDbUser.lastfmUsername, 
-                amount, 
-                1, 
-                targetDbUser.lastfmSessionKey
-            );
+            // Check for filters
+            let rawQuery = userSettings.searchValue;
+            const artistMatch = rawQuery.match(/artist:("([^"]+)"|'([^']+)'|(\S+))/i);
+            const albumMatch = rawQuery.match(/album:("([^"]+)"|'([^']+)'|(\S+))/i);
+            const trackMatch = rawQuery.match(/track:("([^"]+)"|'([^']+)'|(\S+))/i);
+            const yearMatch = rawQuery.match(/year:(\d{4})/i);
 
-            if (!recent.tracks || recent.tracks.length === 0) {
-                const payload = new ComponentsV2().addText(`**${userSettings.displayName}** has no recent tracks.`).build();
-                if (isSlash) await interactionOrMessage.editReply(payload);
-                else await interactionOrMessage.channel.send(payload);
-                return;
+            let filterArtist = artistMatch ? (artistMatch[2] || artistMatch[3] || artistMatch[4]) : null;
+            if (isSlash) {
+                const slashArtist = interactionOrMessage.options.getString('artist');
+                if (slashArtist) filterArtist = slashArtist;
+            }
+
+            const filterAlbum = albumMatch ? (albumMatch[2] || albumMatch[3] || albumMatch[4]) : null;
+            const filterTrack = trackMatch ? (trackMatch[2] || trackMatch[3] || trackMatch[4]) : null;
+            const filterYear = yearMatch ? parseInt(yearMatch[1]) : null;
+
+            let isFiltered = filterArtist || filterAlbum || filterTrack || filterYear;
+
+            let recentList: any[] = [];
+            let headerText = `### Recent Tracks for ${userSettings.displayName}`;
+
+            if (isFiltered) {
+                // FILTERED: Read from Native Database
+                let whereClause: any = { userId: targetDbUser.id };
+                if (filterArtist) whereClause.artistName = { contains: filterArtist, mode: 'insensitive' };
+                if (filterAlbum) whereClause.albumName = { contains: filterAlbum, mode: 'insensitive' };
+                if (filterTrack) whereClause.trackName = { contains: filterTrack, mode: 'insensitive' };
+                if (filterYear) {
+                    whereClause.timePlayed = {
+                        gte: new Date(`${filterYear}-01-01T00:00:00.000Z`),
+                        lt: new Date(`${filterYear + 1}-01-01T00:00:00.000Z`)
+                    };
+                }
+
+                // Fire background sync first
+                triggerDeltaSync(targetDbUser.discordId);
+
+                const dbPlays = await prisma.userPlay.findMany({
+                    where: whereClause,
+                    orderBy: { timePlayed: 'desc' },
+                    take: amount
+                });
+
+                if (dbPlays.length === 0) {
+                    const payload = new ComponentsV2().addText(`**${userSettings.displayName}** has no tracks matching those filters.`).build();
+                    if (isSlash) await interactionOrMessage.editReply(payload);
+                    else await interactionOrMessage.channel.send(payload);
+                    return;
+                }
+
+                recentList = dbPlays.map(p => ({
+                    artist: { name: p.artistName },
+                    name: p.trackName,
+                    album: { '#text': p.albumName || '' },
+                    date: { uts: Math.floor(p.timePlayed.getTime() / 1000) },
+                    '@attr': {}
+                }));
+
+                // Build filter header text
+                let filterStrs = [];
+                if (filterArtist) filterStrs.push(`Artist: ${filterArtist}`);
+                if (filterAlbum) filterStrs.push(`Album: ${filterAlbum}`);
+                if (filterTrack) filterStrs.push(`Track: ${filterTrack}`);
+                if (filterYear) filterStrs.push(`Year: ${filterYear}`);
+                headerText = `### Recent Tracks for ${userSettings.displayName}\n-# Filters: ${filterStrs.join(' | ')}`;
+
+            } else {
+                // UNFILTERED: Use LastFM API to get 'Now Playing'
+                const recent = await LastFM.getRecentTracksPaginated(
+                    targetDbUser.lastfmUsername, 
+                    amount, 
+                    1, 
+                    targetDbUser.lastfmSessionKey
+                );
+
+                if (!recent.tracks || recent.tracks.length === 0) {
+                    const payload = new ComponentsV2().addText(`**${userSettings.displayName}** has no recent tracks.`).build();
+                    if (isSlash) await interactionOrMessage.editReply(payload);
+                    else await interactionOrMessage.channel.send(payload);
+                    return;
+                }
+                recentList = recent.tracks.slice(0, amount);
             }
 
             // 4. Build Embed
-            const builder = new ComponentsV2().setAccent(0x5d010b);
+            const builder = new ComponentsV2().setAccent(embedColor);
             
             // Check health status (Phase 1 HealthTracker)
             const healthStatus = await LastfmHealthTracker.getStatusLine();
             if (healthStatus) builder.addText(healthStatus);
 
-            const list = recent.tracks.slice(0, amount).map((t: any) => {
+            const list = recentList.map((t: any) => {
                 const artist = t.artist?.['#text'] || t.artist?.name || 'Unknown';
                 const track = t.name || 'Unknown';
                 const album = t.album?.['#text'] || '';
@@ -89,7 +169,7 @@ export default class RecentTracksCommand extends BaseCommand {
                 return `**[${track}](${trackUrl})** by **[${artist}](${artistUrl})**${album ? ` from *${album}*` : ''}${timeStr}`;
             }).join('\n');
 
-            builder.addText(`### Recent Tracks for ${userSettings.displayName}\n${list}`);
+            builder.addText(`${headerText}\n${list}`);
             
             const payload = builder.build();
             if (isSlash) await interactionOrMessage.editReply(payload);
@@ -97,7 +177,7 @@ export default class RecentTracksCommand extends BaseCommand {
 
         } catch (err) {
             console.error(err);
-            const payload = new ComponentsV2().setAccent(0xff0000).addText('❌ Failed to fetch recent tracks from Last.fm.').build();
+            const payload = new ComponentsV2().setAccent(0xff0000).addText('❌ Failed to fetch recent tracks.').build();
             if (isSlash) await interactionOrMessage.editReply(payload);
             else await interactionOrMessage.channel.send(payload);
         }

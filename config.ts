@@ -33,33 +33,9 @@ export const config = {
             secure: true
         },
         {
-            name: 'Jirayu (v4)',
-            url: 'lavalink.jirayu.net:443',
-            auth: 'youshallnotpass',
-            secure: true
-        },
-        {
             name: 'Trinium (v4)',
             url: 'lavalink-v4.triniumhost.com:443',
             auth: 'free',
-            secure: true
-        },
-        {
-            name: 'Lexislohr (v4)',
-            url: 'lavalink.lexislohr.de:443',
-            auth: 'youshallnotpass',
-            secure: true
-        },
-        {
-            name: 'Ajieanthony (v4)',
-            url: 'lavalink-v4.ajieanthony.com:443',
-            auth: 'youshallnotpass',
-            secure: true
-        },
-        {
-            name: 'Cebulawka (v4)',
-            url: 'lavalink.cebulawka.xyz:443',
-            auth: 'youshallnotpass',
             secure: true
         },
         {

@@ -18,19 +18,24 @@ export async function loadCommands(client: Client) {
             const fileUrl = pathToFileURL(join(categoryPath, file)).href;
             const imported = await import(fileUrl);
             const CommandClass = imported.default?.default || imported.default || imported;
-            const command = new CommandClass() as BaseCommand;
-
-            commands.set(command.name, command);
             
-            if (command.aliases && Array.isArray(command.aliases)) {
-                for (const alias of command.aliases) {
-                    commands.set(alias, command);
-                }
-            }
+            try {
+                const command = new CommandClass() as BaseCommand;
 
-            // Register slash command if it has slashData
-            if (command.slashData) {
-                client.application?.commands.create(command.slashData.toJSON());
+                commands.set(command.name, command);
+                
+                if (command.aliases && Array.isArray(command.aliases)) {
+                    for (const alias of command.aliases) {
+                        commands.set(alias, command);
+                    }
+                }
+
+                // Register slash command if it has slashData
+                if (command.slashData) {
+                    client.application?.commands.create(command.slashData.toJSON());
+                }
+            } catch (err) {
+                console.error(`Failed to load command ${file}:`, err);
             }
         }
     }

@@ -40,6 +40,7 @@ export default class ShazamCommand extends BaseCommand {
     );
 
   async execute(interactionOrMessage: any, isSlash = false, args?: string[]) {
+
     const isPrefix = !isSlash;
     if (isPrefix) {
       try { (interactionOrMessage.channel as TextChannel).sendTyping(); } catch { }

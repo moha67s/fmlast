@@ -33,7 +33,7 @@ export class TrackResolverService {
     static async resolve(artistName: string, trackName: string, forceRefresh = false, albumHint?: string): Promise<ResolvedTrack> {
         const query = `${artistName} - ${trackName}`.toLowerCase().trim();
         // v13: Strict similarity validation + CAS fix
-        const cacheKey = `utr:v13:resolve:${Buffer.from(query).toString('base64')}`;
+        const cacheKey = `utr:v14:resolve:${Buffer.from(query).toString('base64')}`;
 
         // 1. Check Redis Cache
         if (!forceRefresh) {
@@ -166,7 +166,7 @@ export class TrackResolverService {
      */
     static async resolveArtist(artistName: string): Promise<{ artist: string, avatarUrl: string | null, tags: string[] }> {
         const query = `artist:${artistName}`.toLowerCase().trim();
-        const cacheKey = `utr:artist:${Buffer.from(query).toString('base64')}`;
+        const cacheKey = `utr:artist:v2:${Buffer.from(query).toString('base64')}`;
 
         const cached = await CacheService.get<any>(cacheKey);
         if (cached) return cached;
@@ -179,7 +179,7 @@ export class TrackResolverService {
 
         const result = {
             artist: artistName,
-            avatarUrl: dzAvatar || spAvatar || null,
+            avatarUrl: spAvatar || dzAvatar || null,
             tags: lfmTags.map((t: any) => t.name).slice(0, 5)
         };
 

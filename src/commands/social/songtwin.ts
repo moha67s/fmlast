@@ -105,6 +105,7 @@ export default class SongTwinCommand extends BaseCommand {
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
+
         if (!isSlash) {
             try { (interactionOrMessage.channel as TextChannel).sendTyping(); } catch { }
         }
@@ -443,7 +444,7 @@ export default class SongTwinCommand extends BaseCommand {
 
     private async replyError(interactionOrMessage: any, isSlash: boolean, msg: string): Promise<void> {
         const payload = new ComponentsV2()
-            .setAccent(0xff4444)
+            .setAccent(0x8050ff)
             .addText(msg)
             .build();
 
