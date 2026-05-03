@@ -125,7 +125,6 @@ export class IdResolutionService {
      * Reduces network roundtrips drastically (from N queries to ~6-10 queries).
      */
     static async resolveBatch(combos: string[], l1Cache?: any) {
-        console.log(`[IdRes] resolveBatch START — ${combos.length} unique items`);
         const results = new Map<string, { artistId: string, trackId: string, albumId: string | null }>();
         const uniqueArtists = new Set<string>();
         const comboData = combos.map(c => {
@@ -159,10 +158,7 @@ export class IdResolutionService {
                     missingArtists.push(name);
                 }
             });
-            console.log(`[IdRes] Artists: ${artistMap.size} found (L1/L2), ${missingArtists.length} missing`);
-
             if (missingArtists.length > 0) {
-                console.log(`[IdRes] Fetching ${missingArtists.length} artists from DB...`);
                 // Use IN clause for artists - it's fast
                 const dbArtists = await prisma.artist.findMany({ where: { name: { in: missingArtists } } });
                 
@@ -180,7 +176,6 @@ export class IdResolutionService {
 
                 const stillMissingArtists = missingArtists.filter(name => !artistMap.has(name));
                 if (stillMissingArtists.length > 0) {
-                    console.log(`[IdRes] Creating ${stillMissingArtists.length} new artists (bulk)...`);
                     await prisma.artist.createMany({
                         data: stillMissingArtists.map(name => ({ name })),
                         skipDuplicates: true
@@ -230,10 +225,7 @@ export class IdResolutionService {
                     missingTracks.push(t);
                 }
             });
-            console.log(`[IdRes] Tracks: ${trackMap.size} found (L1/L2), ${missingTracks.length} missing`);
-
             if (missingTracks.length > 0) {
-                console.log(`[IdRes] Fetching ${missingTracks.length} tracks from DB (parallel OR)...`);
                 
                 const trackChunks = [];
                 for (let i = 0; i < missingTracks.length; i += 50) {
@@ -262,7 +254,6 @@ export class IdResolutionService {
 
                 const stillMissingTracks = missingTracks.filter(t => !trackMap.has(`${t.artistId}:${t.name.toLowerCase()}`));
                 if (stillMissingTracks.length > 0) {
-                    console.log(`[IdRes] Creating ${stillMissingTracks.length} new tracks (bulk)...`);
                     await prisma.track.createMany({
                         data: stillMissingTracks.map(t => ({ name: t.name, artistId: t.artistId })),
                         skipDuplicates: true
@@ -316,10 +307,7 @@ export class IdResolutionService {
                     missingAlbums.push(al);
                 }
             });
-            console.log(`[IdRes] Albums: ${albumMap.size} found (L1/L2), ${missingAlbums.length} missing`);
-
             if (missingAlbums.length > 0) {
-                console.log(`[IdRes] Fetching ${missingAlbums.length} albums from DB (parallel OR)...`);
                 
                 const albumChunks = [];
                 for (let i = 0; i < missingAlbums.length; i += 50) {
@@ -348,7 +336,6 @@ export class IdResolutionService {
 
                 const stillMissingAlbums = missingAlbums.filter(al => !albumMap.has(`${al.artistId}:${al.name.toLowerCase()}`));
                 if (stillMissingAlbums.length > 0) {
-                    console.log(`[IdRes] Creating ${stillMissingAlbums.length} new albums (bulk)...`);
                     await prisma.album.createMany({
                         data: stillMissingAlbums.map(al => ({ name: al.name, artistId: al.artistId })),
                         skipDuplicates: true

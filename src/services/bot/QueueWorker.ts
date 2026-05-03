@@ -152,12 +152,13 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise
 async function handleIndexing(job: Job<IndexJobData>) {
     const { discordId, type } = job.data;
     const _type = type || 'FULL_SYNC';
-    LoggerService.info(`Started ${_type} indexing for discordId: ${discordId}`, 'Queue');
+    const syncStart = Date.now();
 
     const user = await prisma.user.findUnique({ where: { discordId } });
     if (!user || !user.lastfmUsername) return;
 
     const username = user.lastfmUsername;
+    LoggerService.info(`▶ ${_type} | ${username}`, 'Queue');
     const sessionKey = user.lastfmSessionKey;
     const settings: any = user.settings || {};
     
@@ -206,7 +207,6 @@ async function handleIndexing(job: Job<IndexJobData>) {
     }
 
     if (!isDelta) {
-        console.log(`[Queue] Clearing existing data for ${username} FULL_SYNC...`);
         await prisma.$transaction([
             prisma.userArtist.deleteMany({ where: { userId: user.id } }),
             prisma.userTrack.deleteMany({ where: { userId: user.id } }),
@@ -235,7 +235,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
     const flushPlaysToDB = async (plays: ParsedPlay[]) => {
         if (plays.length === 0) return;
         
-        console.log(`[Queue] [${username}] Pinging DB before flush...`);
+        // Bulk insert — no per-flush logging needed
         await pingDatabase();
         
         const startRes = Date.now();
@@ -261,7 +261,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
         await bulkInsertPlays(data);
         
         const totalTime = Date.now() - startRes;
-        console.log(`[Queue] [${username}] Flush complete (${totalTime}ms)`);
+
     };
 
     const diffAndFlushDelta = async (plays: ParsedPlay[]) => {
@@ -276,7 +276,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
         }
         plays = Array.from(uniquePlaysMap.values());
 
-        console.log(`[Queue] [${username}] Pinging DB before delta flush...`);
+
         await pingDatabase();
         
         const uniqueCombos = new Set<string>();
@@ -312,7 +312,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
         const orphanedPlays = existingPlays.filter(p => !incomingSet.has(`${p.timePlayed.getTime()}|${p.artistName}|${p.trackName}`));
         
         if (orphanedPlays.length > 0) {
-            console.log(`[Queue] Found ${orphanedPlays.length} orphaned plays. Deleting...`);
+            if (orphanedPlays.length > 0) LoggerService.info(`  ↓ Removed ${orphanedPlays.length} orphaned plays`, 'Queue');
             for (let i = 0; i < orphanedPlays.length; i += 500) {
                 const chunk = orphanedPlays.slice(i, i + 500);
                 await prisma.userPlay.deleteMany({ where: { id: { in: chunk.map(r => r.id) } } });
@@ -342,7 +342,7 @@ async function handleIndexing(job: Job<IndexJobData>) {
         addedPlays.forEach(p => updateAggs(p.artistName, p.trackName, p.albumName, 1));
         orphanedPlays.forEach(p => updateAggs(p.artistName, p.trackName, p.albumName, -1));
         
-        console.log(`[Queue] Delta diff complete: +${addedPlays.length} -${orphanedPlays.length}`);
+        LoggerService.info(`  ✦ Delta diff: +${addedPlays.length} added, -${orphanedPlays.length} removed`, 'Queue');
     };
 
     const processPage = (tracks: any[]) => {
@@ -389,29 +389,34 @@ async function handleIndexing(job: Job<IndexJobData>) {
             }
         }
 
+        // Progress report every 25% of pages (4 lines total instead of 174)
+        if (!isDelta) {
+            const pct = Math.floor((p / totalPages) * 100);
+            const prev = Math.floor(((p - 1) / totalPages) * 100);
+            if ((pct >= 25 && prev < 25) || (pct >= 50 && prev < 50) || (pct >= 75 && prev < 75)) {
+                LoggerService.info(`  ${pct}% — page ${p}/${totalPages} | ${totalPlaysProcessed.toLocaleString()} plays`, 'Queue');
+            }
+        }
+
         if (!isDelta && (p % 2 === 0 || p === totalPages)) {
-            console.log(`[Queue] [${username}] Flushing page ${p}/${totalPages} to database...`);
             await withTimeout(flushPlaysToDB(pendingPlays), 120000, `flushPlaysToDB page ${p}`);
             pendingPlays = [];
         } else if (isDelta && p === totalPages) {
-            console.log(`[Queue] [${username}] Running single delta diff for ${pendingPlays.length} plays...`);
             await withTimeout(diffAndFlushDelta(pendingPlays), 120000, `diffAndFlushDelta`);
             pendingPlays = [];
-        } else if (!isDelta) {
-            if (p % 1 === 0) console.log(`[Queue] [${username}] Syncing page ${p}/${totalPages}...`);
         }
         if (p !== 1) await new Promise(r => setTimeout(r, 100));
     }
 
-    console.log(`[Queue] [${username}] Indexing complete. Committing aggregates...`);
     await upsertAggregates(user.id, artistCounts, trackCounts, albumCounts, isDelta, l1Cache);
 
     if (maxUtsEncountered > (settings.lastSyncTimestamp || 0)) {
         settings.lastSyncTimestamp = maxUtsEncountered;
         await prisma.user.update({ where: { id: user.id }, data: { settings } });
     }
-    
-    console.log(`[Queue] ${_type} complete for ${username}. Total: ${totalPlaysProcessed}`);
+
+    const elapsed = ((Date.now() - syncStart) / 1000).toFixed(1);
+    LoggerService.info(`✅ ${_type} | ${username} — ${totalPlaysProcessed.toLocaleString()} plays in ${elapsed}s`, 'Queue');
     
     // Check for milestones after sync
     await checkMilestones(user.id, discordId, username).catch(() => {});
@@ -430,7 +435,7 @@ async function upsertAggregates(userId: string, artists: Map<string, any>, track
     const BATCH_SIZE = 1000;
 
     if (!isDelta) {
-        console.log(`[Queue] Performing FULL_SYNC wipe for user ${userId}...`);
+
         await prisma.$transaction([
             prisma.userArtist.deleteMany({ where: { userId } }),
             prisma.userTrack.deleteMany({ where: { userId } }),
@@ -438,7 +443,7 @@ async function upsertAggregates(userId: string, artists: Map<string, any>, track
         ]);
         
         // ── ARTISTS ──────────────────────────────────────────────────────────
-        console.log(`[Queue] Resolving ${artists.size} artists...`);
+
         const artistNames = Array.from(artists.values()).map(d => d.name);
         
         // Check L1 first, then MGET from L2
@@ -500,10 +505,10 @@ async function upsertAggregates(userId: string, artists: Map<string, any>, track
         for (let i = 0; i < artistRows.length; i += BATCH_SIZE) {
             await prisma.userArtist.createMany({ data: artistRows.slice(i, i + BATCH_SIZE), skipDuplicates: true });
         }
-        console.log(`[Queue] Committed ${artistRows.length} userArtist rows`);
+
 
         // ── TRACKS ───────────────────────────────────────────────────────────
-        console.log(`[Queue] Resolving ${tracks.size} tracks...`);
+
         const trackIdMap = new Map<string, string>(); // key: artistId:trackName
         const trackList = Array.from(tracks.values());
         const missingFromL1Tracks: any[] = [];
@@ -569,10 +574,10 @@ async function upsertAggregates(userId: string, artists: Map<string, any>, track
         for (let i = 0; i < trackRows.length; i += BATCH_SIZE) {
             await prisma.userTrack.createMany({ data: trackRows.slice(i, i + BATCH_SIZE), skipDuplicates: true });
         }
-        console.log(`[Queue] Committed ${trackRows.length} userTrack rows`);
+
 
         // ── ALBUMS ───────────────────────────────────────────────────────────
-        console.log(`[Queue] Resolving ${albums.size} albums...`);
+
         const albumIdMap = new Map<string, string>();
         const albumList = Array.from(albums.values());
         const missingFromL1Albums: any[] = [];
@@ -638,7 +643,7 @@ async function upsertAggregates(userId: string, artists: Map<string, any>, track
         for (let i = 0; i < albumRows.length; i += BATCH_SIZE) {
             await prisma.userAlbum.createMany({ data: albumRows.slice(i, i + BATCH_SIZE), skipDuplicates: true });
         }
-        console.log(`[Queue] Committed ${albumRows.length} userAlbum rows`);
+
 
     } else {
         // UPDATE PATH: Incremental updates for DELTA_SYNC
@@ -799,9 +804,9 @@ if (REDIS_URL) {
         maxStalledCount: 1,
     });
 
-    deltaWorker.on('completed', (job) => console.log(`[DeltaWorker] ✅ ${job.id} done`));
-    deltaWorker.on('failed', (job, err) => console.error(`[DeltaWorker] ❌ ${job?.id} FAILED:`, err));
-    deltaWorker.on('error', (err) => console.error(`[DeltaWorker] Worker Error:`, err));
+    deltaWorker.on('completed', (job) => LoggerService.info(`✅ ${job.id}`, 'DeltaWorker'));
+    deltaWorker.on('failed', (job, err) => LoggerService.error(`❌ ${job?.id} FAILED`, err, 'DeltaWorker'));
+    deltaWorker.on('error', (err) => LoggerService.error('Worker error', err, 'DeltaWorker'));
 
     // ── Full Worker: single-concurrency for heavyweight full syncs / imports ──
     // Full syncs wipe-and-replace all user data — must run one at a time to avoid
@@ -822,9 +827,9 @@ if (REDIS_URL) {
         maxStalledCount: 1,
     });
 
-    fullWorker.on('completed', (job) => console.log(`[FullWorker] ✅ ${job.id} done`));
-    fullWorker.on('failed', (job, err) => console.error(`[FullWorker] ❌ ${job?.id} FAILED:`, err));
-    fullWorker.on('error', (err) => console.error(`[FullWorker] Worker Error:`, err));
+    fullWorker.on('completed', (job) => LoggerService.info(`✅ ${job.id}`, 'FullWorker'));
+    fullWorker.on('failed', (job, err) => LoggerService.error(`❌ ${job?.id} FAILED`, err, 'FullWorker'));
+    fullWorker.on('error', (err) => LoggerService.error('Worker error', err, 'FullWorker'));
 
     console.log(`[Queue] Workers initialized: DeltaWorker(concurrency=3) + FullWorker(concurrency=1)`);
 }
