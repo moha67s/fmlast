@@ -57,9 +57,9 @@ export class CronManager {
 
         // ── Register Repeatable Jobs ────────────────────────────────────
 
-        // 1. Stale user sync — every 4 hours (mirrors AddUsersToUpdateQueue: "0 6,14 * * *")
+        // 1. Stale user sync — every 12 hours (mirrors AddUsersToUpdateQueue: "0 */12 * * *")
         await cronQueue.add('sync-stale-users', { name: 'sync-stale-users' }, {
-            repeat: { pattern: '0 */4 * * *' },
+            repeat: { pattern: '0 */12 * * *' },
             removeOnComplete: true,
             removeOnFail: true,
         });
@@ -78,12 +78,9 @@ export class CronManager {
             removeOnFail: true,
         });
 
-        // 4. Drift detection sweep — every 12 hours (catch users whose DB is out of sync)
-        await cronQueue.add('drift-detection-sweep', { name: 'drift-detection-sweep' }, {
-            repeat: { pattern: '0 */12 * * *' },
-            removeOnComplete: true,
-            removeOnFail: true,
-        });
+        // 4. Drift detection sweep is DISABLED. 
+        // We now use FMBot's SmallIndex system probabilistically inside Delta Syncs.
+        // No need to spam the API for all users every 12 hours.
 
         // 5. Enrich global metadata — every 1 hour (MB enrichment)
         await cronQueue.add('enrich-global-metadata', { name: 'enrich-global-metadata' }, {
@@ -106,7 +103,7 @@ export class CronManager {
                     await handleHealthCheck();
                     break;
                 case 'drift-detection-sweep':
-                    await handleDriftDetection();
+                    // Disabled. Left empty just in case there are lingering jobs in Redis.
                     break;
                 case 'enrich-global-metadata':
                     await handleGlobalMetadataEnrichment();
@@ -144,20 +141,19 @@ async function handleSyncStaleUsers(): Promise<void> {
         return;
     }
 
-    const staleThreshold = Math.floor(Date.now() / 1000) - (4 * 3600);
+    // Sync all users who haven't updated in over 12 hours (FMBot parity)
+    const staleThreshold = Math.floor(Date.now() / 1000) - (12 * 3600);
 
     const allLinkedUsers = await prisma.user.findMany({
         where: { lastfmUsername: { not: null } },
-        select: { discordId: true, lastfmUsername: true, settings: true },
-        orderBy: { updatedAt: 'asc' },
-        take: 100,
+        select: { discordId: true, lastfmUsername: true, settings: true }
     });
 
     const staleUsers = allLinkedUsers.filter(u => {
         const settings = (u.settings as any) || {};
         const lastSync = settings.lastSyncTimestamp || 0;
         return lastSync < staleThreshold;
-    }).slice(0, 10); // Max 10 per tick to be gentle on API
+    });
 
     if (staleUsers.length === 0) return;
 
@@ -232,46 +228,11 @@ async function handleHealthCheck(): Promise<void> {
 }
 
 /**
- * Sweep active users and detect significant drift between Last.fm total and local DB.
- * If drift > 20%, enqueue a full re-sync.
- * Mirrors the detectDrift logic but runs proactively across all users.
+ * (Disabled) Sweep active users and detect significant drift between Last.fm total and local DB.
+ * Replaced by the SmallIndex feature.
  */
 async function handleDriftDetection(): Promise<void> {
-    const healthy = await LastfmHealthTracker.isHealthy();
-    if (!healthy) return;
-
-    // Get 5 users who were synced most recently (they're the most "active")
-    const users = await prisma.user.findMany({
-        where: { lastfmUsername: { not: null } },
-        select: { id: true, discordId: true, lastfmUsername: true, lastfmSessionKey: true, settings: true },
-        orderBy: { updatedAt: 'desc' },
-        take: 5,
-    });
-
-    for (const user of users) {
-        try {
-            const lfmInfo = await LastFM.getUserInfo(user.lastfmUsername!, user.lastfmSessionKey);
-            const lfmTotal = parseInt(lfmInfo?.playcount || '0', 10);
-            if (lfmTotal === 0) continue;
-
-            const dbTotal = await prisma.userArtist.aggregate({
-                where: { userId: user.id },
-                _sum: { playcount: true },
-            });
-            const localTotal = dbTotal._sum.playcount || 0;
-            const drift = Math.abs(lfmTotal - localTotal);
-            const driftPct = (drift / lfmTotal) * 100;
-
-            if (driftPct > 5) {
-                LoggerService.warn(
-                    `Drift detected for ${user.lastfmUsername}: LFM=${lfmTotal} DB=${localTotal} (${driftPct.toFixed(1)}%)`,
-                    'CronManager'
-                );
-                await triggerDeltaSync(user.discordId, true);
-            }
-        } catch { }
-        await new Promise(r => setTimeout(r, 500));
-    }
+    return; // Disabled
 }
 
 /**
