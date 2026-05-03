@@ -216,7 +216,7 @@ model UserPlay {
   artist     Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
   album      Album?   @relation(fields: [albumId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, timePlayed])
+  @@unique([userId, timePlayed, artistName, trackName])
   @@index([userId])
   @@index([trackId])
   @@index([timePlayed])

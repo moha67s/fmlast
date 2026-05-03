@@ -1,7 +1,7 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { LastFM } from '../../services/api/LastFM';
 import { prisma } from '../../database/client';
-import { triggerDeltaSync } from '../../services/bot/QueueWorker';
+import { triggerDeltaSync, fullQueue } from '../../services/bot/QueueWorker';
 import { ComponentsV2 } from '../../utils/ComponentsV2';
 import { SettingService } from '../../services/bot/SettingService';
 import { SlashCommandBuilder, TextChannel } from 'discord.js';
@@ -46,8 +46,19 @@ export default class UpdateCommand extends BaseCommand {
             const settings = (dbUser.settings as any) || {};
             const lastSyncUts: number = settings.lastSyncTimestamp || 0;
 
-            // Queue forced delta sync
-            await triggerDeltaSync(userId, true);
+            // Route to FULL_SYNC if gap is too large for a delta (> 1000 plays missing)
+            // This mirrors FMBot's behaviour: big gaps → full reindex, small gaps → delta
+            const needsFullSync = gap > 1000;
+
+            if (needsFullSync) {
+                await fullQueue.add(`full-${userId}`, { discordId: userId, type: 'FULL_SYNC' }, {
+                    jobId: `full-${userId}`,
+                    removeOnComplete: true,
+                    removeOnFail: true
+                });
+            } else {
+                await triggerDeltaSync(userId, true);
+            }
 
             // Build response — mirrors FMBot's /update output
             const builder = new ComponentsV2().setAccent(embedColor);
@@ -59,7 +70,11 @@ export default class UpdateCommand extends BaseCommand {
             );
 
             if (gap > 0) {
-                builder.addText(`⏳ **${gap.toLocaleString()} play${gap === 1 ? '' : 's'}** will be indexed in the background.`);
+                if (needsFullSync) {
+                    builder.addText(`🔄 **Full re-index queued** — ${gap.toLocaleString()} missing plays will be imported. This may take a few minutes.`);
+                } else {
+                    builder.addText(`⏳ **${gap.toLocaleString()} play${gap === 1 ? '' : 's'}** will be indexed in the background.`);
+                }
             } else {
                 builder.addText(`✅ Your index is already **up to date!**`);
             }
@@ -69,7 +84,11 @@ export default class UpdateCommand extends BaseCommand {
             }
 
             builder.addSeparator();
-            builder.addText(`-# 🔄 Delta sync queued — your stats will update shortly.`);
+            if (needsFullSync) {
+                builder.addText(`-# ⚡ Full sync queued — wipe & re-import all plays.`);
+            } else {
+                builder.addText(`-# 🔄 Delta sync queued — your stats will update shortly.`);
+            }
 
             const payload = builder.build();
             if (isSlash) await interactionOrMessage.editReply(payload);

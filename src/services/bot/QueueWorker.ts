@@ -51,7 +51,7 @@ async function bulkInsertPlays(rows: {
         await pool.query(
             `INSERT INTO user_plays (id,user_id,artist_id,track_id,album_id,artist_name,track_name,album_name,time_played)
              VALUES ${placeholders}
-             ON CONFLICT (user_id, time_played) DO NOTHING`,
+             ON CONFLICT (user_id, time_played, artist_name, track_name) DO NOTHING`,
             values
         );
     }
