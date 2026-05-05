@@ -1,10 +1,10 @@
 import { BaseCommand } from '../../structures/BaseCommand';
 import { prisma } from '../../database/client';
-import { 
-    SlashCommandBuilder, 
-    TextChannel, 
-    ButtonStyle, 
-    ComponentType, 
+import {
+    SlashCommandBuilder,
+    TextChannel,
+    ButtonStyle,
+    ComponentType,
     MessageFlags,
     AttachmentBuilder,
     ChannelType
@@ -15,6 +15,7 @@ import { TrackResolverService } from '../../services/api/TrackResolverService';
 import { Spotify } from '../../services/api/Spotify';
 import { LastFM } from '../../services/api/LastFM';
 import { AlbumRenderService } from '../../services/bot/AlbumRenderService';
+import { RenderCacheService } from '../../services/bot/RenderCacheService';
 import { config } from '../../../config';
 import axios from 'axios';
 
@@ -26,37 +27,37 @@ export default class AlbumCommand extends BaseCommand {
     slashData = new SlashCommandBuilder()
         .setName('album')
         .setDescription('Music Album Collection Game')
-        .addSubcommand(sub => 
+        .addSubcommand(sub =>
             sub.setName('roll')
-               .setDescription('Roll for a random album to add to your collection')
+                .setDescription('Roll for a random album to add to your collection')
         )
         .addSubcommand(sub =>
             sub.setName('collection')
-               .setDescription('View your collected albums')
-               .addUserOption(opt => opt.setName('user').setDescription('User to view collection of'))
+                .setDescription('View your collected albums')
+                .addUserOption(opt => opt.setName('user').setDescription('User to view collection of'))
         )
         .addSubcommand(sub =>
             sub.setName('profile')
-               .setDescription('View your game profile, Vinyls, and wishlist')
-               .addUserOption(opt => opt.setName('user').setDescription('User to view profile of'))
+                .setDescription('View your game profile, Vinyls, and wishlist')
+                .addUserOption(opt => opt.setName('user').setDescription('User to view profile of'))
         )
         .addSubcommand(sub =>
             sub.setName('wish')
-               .setDescription('Add/remove an album from your wishlist')
-               .addStringOption(opt => opt.setName('query').setDescription('Artist - Album').setRequired(true))
+                .setDescription('Add/remove an album from your wishlist')
+                .addStringOption(opt => opt.setName('query').setDescription('Artist - Album').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('market')
-               .setDescription('View and buy from the global album market')
+                .setDescription('View and buy from the global album market')
         )
         .addSubcommand(sub =>
             sub.setName('daily')
-               .setDescription('Claim your daily Vinyls and quota reset')
+                .setDescription('Claim your daily Vinyls and quota reset')
         )
         .addSubcommand(sub =>
             sub.setName('balance')
-               .setDescription('Check your Vinyls balance')
-               .addUserOption(opt => opt.setName('user').setDescription('User to check balance of'))
+                .setDescription('Check your Vinyls balance')
+                .addUserOption(opt => opt.setName('user').setDescription('User to check balance of'))
         );
 
     async execute(interactionOrMessage: any, isSlash = false, args?: string[]): Promise<void> {
@@ -97,7 +98,7 @@ export default class AlbumCommand extends BaseCommand {
             const COOLDOWN_MS = 30 * 60 * 1000;
             const MAX_ROLLS = 10;
             const now = Date.now();
-            
+
             let rolls = dbUser.albumRolls;
             const lastRoll = dbUser.lastAlbumRoll;
 
@@ -126,7 +127,7 @@ export default class AlbumCommand extends BaseCommand {
             const newRolls = rolls + 1;
             await prisma.user.update({
                 where: { discordId },
-                data: { 
+                data: {
                     albumRolls: newRolls,
                     lastAlbumRoll: newRolls >= MAX_ROLLS ? new Date() : dbUser.lastAlbumRoll
                 }
@@ -147,7 +148,7 @@ export default class AlbumCommand extends BaseCommand {
             const color = isWish ? 0xFF007F : AlbumGameService.getRarityColor(roll.rarity);
             let flavorText = this.getFlavorText(roll.rarity);
             if (isWish) flavorText = `✨ **A DIVINE MANIFESTATION!** ✨`;
-            
+
             const builder = new ComponentsV2()
                 .setAccent(color)
                 .addText(`### 🎲 ALBUM ROLL\n${flavorText}\n**${roll.artistName}** — **${roll.albumName}**`)
@@ -157,7 +158,7 @@ export default class AlbumCommand extends BaseCommand {
                 builder.addText(`\n💿 **Duplicate!** You already own this album.\nConverted into **${scrapValue} Vinyls**.`);
                 builder.addFooter(`Rarity: ${roll.rarity} • Rolls Left: ${MAX_ROLLS - newRolls}`);
                 await AlbumGameService.awardVinyls(discordId, scrapValue);
-                
+
                 const payload = builder.build();
                 isSlash ? await interactionOrMessage.editReply(payload) : await channel.send(payload);
                 return;
@@ -180,7 +181,7 @@ export default class AlbumCommand extends BaseCommand {
                 style: ButtonStyle.Primary
             });
 
-            const rollMsg = isSlash 
+            const rollMsg = isSlash
                 ? await interactionOrMessage.editReply(builder.build())
                 : await channel.send(builder.build());
 
@@ -197,7 +198,7 @@ export default class AlbumCommand extends BaseCommand {
                 isSnipable = true;
                 builder.addFooter(`Rarity: ${roll.rarity} • Rolls Left: ${MAX_ROLLS - newRolls} • OPEN FOR SNIPING!`);
                 builder.payload.components[builder.payload.components.length - 2].components[0].content = `-# 🔓 **Open for anyone to claim!**`;
-                await rollMsg.edit(builder.build()).catch(() => {});
+                await rollMsg.edit(builder.build()).catch(() => { });
             }, 15000);
 
             collector.on('collect', async (i: any) => {
@@ -215,7 +216,7 @@ export default class AlbumCommand extends BaseCommand {
                         .addText(`### ✅ ALBUM ${i.user.id === discordId ? 'CLAIMED' : 'SNIPED'}!\n**${roll.artistName}** — **${roll.albumName}** added to <@${i.user.id}>'s collection.`)
                         .setThumbnail(roll.image)
                         .addFooter(`Rarity: ${roll.rarity}`);
-                    
+
                     await i.editReply(claimedBuilder.build());
                 } else {
                     await i.followUp({ content: '❌ Failed to claim. You might already own this or your quota is full!', ephemeral: true });
@@ -228,9 +229,9 @@ export default class AlbumCommand extends BaseCommand {
                         .setAccent(0x333333)
                         .addText(`### 🎲 ALBUM ROLL\n❌ **Claim period expired.**\n**${roll.artistName}** — **${roll.albumName}** returned to the pool.`)
                         .addFooter(`Rarity: ${roll.rarity}`);
-                    
+
                     if (isSlash) await interactionOrMessage.editReply(expiredBuilder.build());
-                    else await rollMsg.edit(expiredBuilder.build()).catch(() => {});
+                    else await rollMsg.edit(expiredBuilder.build()).catch(() => { });
                 }
             });
 
@@ -264,25 +265,54 @@ export default class AlbumCommand extends BaseCommand {
         const buildCardPayload = async (page: number) => {
             const collection = await AlbumGameService.getCollection(targetId, page, 1);
             const item = collection!.items[0];
+            const artist = item.album.artist.name;
+            const albumName = item.album.name;
+            const rarity = item.rarity as AlbumRarity;
 
             const claimedDate = new Date(item.claimedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
-            const resolved = await TrackResolverService.resolveAlbum(item.album.artist.name, item.album.name);
-            const artworkUrl = resolved.artworkUrl || item.album.imageLarge || 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png';
+            // ── 1. CHECK RENDER CACHE ──
+            const cacheKey = `${albumName}:${rarity}`;
+            let cdnUrl = await RenderCacheService.getCachedImage('album_card', artist, cacheKey);
+            let cardBuffer: Buffer | null = null;
 
-            const cardBuffer = await AlbumRenderService.renderAlbumCard({
-                artistName: item.album.artist.name,
-                albumName: item.album.name,
-                image: artworkUrl,
-                rarity: item.rarity as AlbumRarity
-            });
+            if (!cdnUrl) {
+                const resolved = await TrackResolverService.resolveAlbum(artist, albumName);
+                const artworkUrl = resolved.artworkUrl || item.album.imageLarge || 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png';
 
-            const attachment = new AttachmentBuilder(cardBuffer, { name: 'album_card.webp' });
+                cardBuffer = await AlbumRenderService.renderAlbumCard({
+                    artistName: artist,
+                    albumName: albumName,
+                    image: artworkUrl,
+                    rarity: rarity
+                });
+
+                // ── 2. UPLOAD TO STAGING CHANNEL FOR CDN URL ──
+                const stagingChannelId = config.CHART_STAGING_CHANNEL_ID;
+                const client = interactionOrMessage.client;
+                if (stagingChannelId && client) {
+                    try {
+                        const stagingChannel = await client.channels.fetch(stagingChannelId) as TextChannel;
+                        if (stagingChannel?.type === ChannelType.GuildText) {
+                            const att = new AttachmentBuilder(cardBuffer, { name: `album_${item.album.id}.webp` });
+                            const stagingMsg = await stagingChannel.send({ files: [att] });
+                            cdnUrl = stagingMsg.attachments.first()?.url || null;
+
+                            if (cdnUrl) {
+                                await RenderCacheService.setCachedImage('album_card', artist, cacheKey, cdnUrl);
+                                setTimeout(() => stagingMsg.delete().catch(() => {}), 86400000);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[album] Staging upload failed:', e);
+                    }
+                }
+            }
 
             const builder = new ComponentsV2()
-                .setAccent(AlbumGameService.getRarityColor(item.rarity as AlbumRarity))
+                .setAccent(AlbumGameService.getRarityColor(rarity))
                 .addText(`### 🗃️ SOUNDSCAPE ARCHIVE (#${page + 1}/${totalItems})\nViewing collection for <@${targetId}>\n-# 📅 Claimed on ${claimedDate}`)
-                .setImage('attachment://album_card.webp');
+                .setImage(cdnUrl ?? 'attachment://album_card.webp');
 
             const row: any[] = [];
             if (page > 0) row.push({
@@ -299,7 +329,21 @@ export default class AlbumCommand extends BaseCommand {
             });
             builder.addRow(row);
 
-            return { ...builder.build(), files: [attachment] };
+            const payload: any = builder.build();
+            if (!cdnUrl) {
+                if (!cardBuffer) {
+                    const resolved = await TrackResolverService.resolveAlbum(artist, albumName);
+                    const artworkUrl = resolved.artworkUrl || item.album.imageLarge || 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png';
+                    cardBuffer = await AlbumRenderService.renderAlbumCard({
+                        artistName: artist,
+                        albumName: albumName,
+                        image: artworkUrl,
+                        rarity: rarity
+                    });
+                }
+                payload.files = [new AttachmentBuilder(cardBuffer, { name: 'album_card.webp' })];
+            }
+            return payload;
         };
 
         // ── List mode payload ──
@@ -385,11 +429,11 @@ export default class AlbumCommand extends BaseCommand {
 
     private async handleProfile(interactionOrMessage: any, isSlash: boolean, discordId: string, channel: TextChannel): Promise<void> {
         const targetId = isSlash ? (interactionOrMessage.options.getUser('user')?.id || discordId) : discordId;
-        
+
         if (isSlash) await interactionOrMessage.deferReply();
         else { try { channel.sendTyping(); } catch { } }
 
-        const dbUser = await prisma.user.findUnique({ 
+        const dbUser = await prisma.user.findUnique({
             where: { discordId: targetId },
             include: { gameProfile: true }
         });
@@ -401,7 +445,7 @@ export default class AlbumCommand extends BaseCommand {
 
         const profile = dbUser.gameProfile || await AlbumGameService.getGameProfile(targetId);
         const collection = await AlbumGameService.getCollection(targetId, 0, 1); // Get count
-        
+
         // Fetch Last.fm info for thumbnail
         let lfmInfo: any = null;
         try {
@@ -412,7 +456,7 @@ export default class AlbumCommand extends BaseCommand {
             console.warn(`[AlbumCommand] Failed to fetch Last.fm info for ${dbUser.lastfmUsername}:`, err instanceof Error ? err.message : err);
         }
 
-        const thumbnail = lfmInfo?.image?.find((img: any) => img.size === 'extralarge')?.['#text'] 
+        const thumbnail = lfmInfo?.image?.find((img: any) => img.size === 'extralarge')?.['#text']
             || lfmInfo?.image?.find((img: any) => img.size === 'large')?.['#text'];
 
         const settings = dbUser.settings as any;
@@ -425,7 +469,7 @@ export default class AlbumCommand extends BaseCommand {
         mainText += `📀 **Collection**: \`${collection?.count || 0}\` albums\n`;
         mainText += `💿 **Vinyls**: **${profile.vinylScraps}**\n`;
         mainText += `⭐ **Wishlist**: \`${profile.wishlist.length}/5\` slots used\n`;
-        
+
         if (lfmInfo) {
             mainText += `📊 **Total Scrobbles**: \`${parseInt(lfmInfo.playcount).toLocaleString()}\` plays\n`;
         }
@@ -673,7 +717,7 @@ export default class AlbumCommand extends BaseCommand {
                 .addText(`💿 Received **${result.scraps} Vinyls**\n`)
                 .addText(`🎲 **Roll Quota Reset!** (You can roll 10 times again)\n\n`)
                 .addFooter(`Come back in 6 hours for more!`);
-            
+
             const payload = builder.build();
             isSlash ? await interactionOrMessage.editReply(payload) : await channel.send(payload);
         } else {
@@ -691,7 +735,7 @@ export default class AlbumCommand extends BaseCommand {
 
     private async handleBalance(interactionOrMessage: any, isSlash: boolean, discordId: string, channel: TextChannel): Promise<void> {
         const targetId = isSlash ? (interactionOrMessage.options.getUser('user')?.id || discordId) : discordId;
-        
+
         if (isSlash) await interactionOrMessage.deferReply();
         else { try { channel.sendTyping(); } catch { } }
 
@@ -701,28 +745,28 @@ export default class AlbumCommand extends BaseCommand {
             return;
         }
 
-        const msg = targetId === discordId 
-            ? `💳 You have **${profile.vinylScraps}** Vinyls.` 
+        const msg = targetId === discordId
+            ? `💳 You have **${profile.vinylScraps}** Vinyls.`
             : `💳 <@${targetId}> has **${profile.vinylScraps}** Vinyls.`;
-        
+
         isSlash ? await interactionOrMessage.editReply(msg) : await channel.send(msg);
     }
 
     private getRarityEmoji(rarity: AlbumRarity): string {
         switch (rarity) {
             case AlbumRarity.LEGENDARY: return '🌟';
-            case AlbumRarity.EPIC:      return '💎';
-            case AlbumRarity.RARE:      return '🔵';
-            default:                    return '⚪';
+            case AlbumRarity.EPIC: return '💎';
+            case AlbumRarity.RARE: return '🔵';
+            default: return '⚪';
         }
     }
 
     private getFlavorText(rarity: AlbumRarity): string {
         switch (rarity) {
             case AlbumRarity.LEGENDARY: return '✨ **A DIVINE DISCOVERY!** ✨';
-            case AlbumRarity.EPIC:      return '🔥 **AN EPIC FIND!**';
-            case AlbumRarity.RARE:      return '💎 **A RARE TREASURE!**';
-            default:                    return '💿 **New discovery!**';
+            case AlbumRarity.EPIC: return '🔥 **AN EPIC FIND!**';
+            case AlbumRarity.RARE: return '💎 **A RARE TREASURE!**';
+            default: return '💿 **New discovery!**';
         }
     }
 
@@ -739,13 +783,13 @@ export default class AlbumCommand extends BaseCommand {
 
             const response = await axios.get(url, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data, 'binary');
-            
+
             const attachment = new AttachmentBuilder(buffer, { name: 'roll-artwork.webp' });
             const msg = await stagingChannel.send({ files: [attachment] });
             const cdnUrl = msg.attachments.first()?.url || null;
 
             // Optional: delete after some time to save space, but Discord CDN links usually persist for a while
-            setTimeout(() => msg.delete().catch(() => {}), 3600000); // 1 hour
+            setTimeout(() => msg.delete().catch(() => { }), 3600000); // 1 hour
 
             return cdnUrl;
         } catch (err) {

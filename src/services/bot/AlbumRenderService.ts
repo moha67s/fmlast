@@ -29,7 +29,7 @@ export class AlbumRenderService {
             rarityIcon: this.getRarityIcon(data.rarity),
             artistImage: artistImage || null,
             barcodeBars,
-        }, { width: 800, height: 900 });
+        }, { width: 1080, height: 1080 });
     }
 
     private static getRarityColor(rarity: AlbumRarity): string {
