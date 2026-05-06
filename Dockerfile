@@ -38,8 +38,9 @@ COPY . .
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Create necessary directories
-RUN mkdir -p /downloads /usr/src/app/logs /usr/src/app/slskd-data
+# Create necessary directories and copy config
+RUN mkdir -p /downloads /tmp/slskd-incomplete /usr/src/app/slskd-data
+COPY slskd.yml /usr/src/app/slskd-data/slskd.yml
 
 # Supervisord config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf

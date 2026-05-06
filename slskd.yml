@@ -1,0 +1,15 @@
+soulseek:
+  username: ""  # overridden by env
+  password: ""  # overridden by env
+
+web:
+  port: 5030
+  authentication:
+    disabled: false
+    api_keys:
+      my_key:
+        key: ""  # overridden by env
+
+directories:
+  downloads: /downloads
+  incomplete: /tmp/slskd-incomplete
