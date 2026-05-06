@@ -10,13 +10,14 @@ RUN apt-get update \
       --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Install slskd (Auto-detect latest ZIP and extract)
+# Install slskd (Full package with wwwroot)
 RUN SLSKD_VERSION=$(curl -fsSL https://api.github.com/repos/slskd/slskd/releases/latest \
         | grep '"tag_name"' | cut -d'"' -f4) \
     && curl -fsSL "https://github.com/slskd/slskd/releases/download/${SLSKD_VERSION}/slskd-${SLSKD_VERSION}-linux-x64.zip" \
         -o /tmp/slskd.zip \
-    && unzip -j /tmp/slskd.zip 'slskd' -d /usr/local/bin/ \
-    && chmod +x /usr/local/bin/slskd \
+    && mkdir -p /opt/slskd \
+    && unzip /tmp/slskd.zip -d /opt/slskd \
+    && chmod +x /opt/slskd/slskd \
     && rm /tmp/slskd.zip
 
 # Set up working directory
