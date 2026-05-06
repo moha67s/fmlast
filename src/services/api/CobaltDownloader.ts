@@ -13,18 +13,15 @@ export class CobaltDownloader {
             throw new Error("COBALT_URL is not set in environment variables.");
         }
 
-        // Ensure URL doesn't have a trailing slash so we can add it safely
         const baseUrl = config.COBALT_URL.endsWith('/') ? config.COBALT_URL : `${config.COBALT_URL}/`;
+        console.log(`📥 Cobalt v10: Requesting ${metadata.name}`);
 
-        console.log(`📥 Requesting Cobalt v10 stream for: ${metadata.name}`);
-
-        // 1. Get stream URL from Cobalt (v10 uses root POST /)
+        // 1. Get stream URL
         const { data: cobaltRes } = await axios.post(baseUrl, {
             url: metadata.youtubeUrl,
             videoQuality: '1080',
             audioFormat: 'mp3',
-            downloadMode: 'audio',
-            filenameStyle: 'basic'
+            downloadMode: 'audio'
         }, {
             headers: {
                 'Accept': 'application/json',
@@ -32,24 +29,31 @@ export class CobaltDownloader {
             }
         });
 
-        // Cobalt v10 error handling
-        if (cobaltRes.status === 'error' || cobaltRes.status === 'rate-limit') {
-            throw new Error(`Cobalt Error: ${cobaltRes.text || 'Unknown Error'}`);
+        if (cobaltRes.status === 'error' || !cobaltRes.url) {
+            throw new Error(`Cobalt Error: ${cobaltRes.text || 'No URL returned'}`);
         }
 
-        const streamUrl = cobaltRes.url;
-        if (!streamUrl) {
-            throw new Error(`Cobalt failed to return a stream URL. Status: ${cobaltRes.status}`);
-        }
+        console.log(`🔗 Stream URL obtained. Downloading binary...`);
 
-        // 2. Download the binary
-        const response = await axios.get(streamUrl, {
+        // 2. Download the binary with redirect support
+        const response = await axios.get(cobaltRes.url, {
             responseType: 'arraybuffer',
-            timeout: 60_000,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            timeout: 90_000,
+            maxRedirects: 10,
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
         });
 
-        fs.writeFileSync(outputPath, Buffer.from(response.data));
+        const buffer = Buffer.from(response.data);
+        const sizeMb = (buffer.length / (1024 * 1024)).toFixed(2);
+        console.log(`📦 Downloaded size: ${sizeMb} MB`);
+
+        if (buffer.length < 500000) { // Less than 500KB is likely an error page
+            throw new Error(`Downloaded file is suspiciously small (${sizeMb}MB). It might be an error page instead of audio.`);
+        }
+
+        fs.writeFileSync(outputPath, buffer);
 
         // 3. Write ID3 tags
         const tags: any = {
@@ -70,8 +74,12 @@ export class CobaltDownloader {
             } catch (_) {}
         }
 
-        NodeID3.write(tags, outputPath);
-        console.log(`✅ Finalized via Cobalt: ${metadata.name}`);
+        const success = NodeID3.write(tags, outputPath);
+        if (success) {
+            console.log(`✅ ID3 Tags written for: ${metadata.name}`);
+        } else {
+            console.warn(`⚠️ Failed to write ID3 tags for: ${metadata.name}`);
+        }
 
         return outputPath;
     }
