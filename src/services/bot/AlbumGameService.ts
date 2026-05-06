@@ -45,11 +45,9 @@ export class AlbumGameService {
                 JOIN artists art ON a.artist_id = art.id
                 WHERE a.name NOT LIKE '%Ù%' 
                   AND a.name NOT LIKE '%Ø%'
-                  AND a.name NOT LIKE '%%'
                   AND a.name NOT LIKE '%??%'
                   AND art.name NOT LIKE '%Ù%'
                   AND art.name NOT LIKE '%Ø%'
-                  AND art.name NOT LIKE '%%'
                   AND LENGTH(a.name) > 1
                 ORDER BY RANDOM()
                 LIMIT 1
@@ -304,11 +302,9 @@ export class AlbumGameService {
             JOIN artists art ON a.artist_id = art.id
             WHERE a.name NOT LIKE '%Ù%' 
               AND a.name NOT LIKE '%Ø%'
-              AND a.name NOT LIKE '%%'
               AND a.name NOT LIKE '%??%'
               AND art.name NOT LIKE '%Ù%'
               AND art.name NOT LIKE '%Ø%'
-              AND art.name NOT LIKE '%%'
               AND LENGTH(a.name) > 1
             ORDER BY RANDOM() 
             LIMIT 1
