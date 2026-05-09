@@ -67,9 +67,9 @@ export class AccountHandler extends BaseInteractionHandler {
                 
                 let job: any = null;
                 if (fullQueue) {
-                    // Start the full sync immediately
+                    // Start the full sync immediately with a unique ID to avoid collisions
                     job = await fullQueue.add('index-user', { discordId: interaction.user.id, type: 'FULL_SYNC' }, {
-                        jobId: `full-${interaction.user.id}`,
+                        jobId: `full-${interaction.user.id}-${Date.now()}`,
                         removeOnComplete: true,
                         removeOnFail: true
                     });
@@ -104,15 +104,21 @@ export class AccountHandler extends BaseInteractionHandler {
                 // Polling loop
                 if (job) {
                     let lastPct = 0;
+                    let attempts = 0;
                     
                     const checkProgress = async () => {
+                        attempts++;
                         try {
                             const currentJob = await fullQueue!.getJob(job.id);
                             
                             // If job is gone, it likely finished successfully (since we removeOnComplete)
+                            // But we wait a few attempts to make sure it didn't just 'not start' yet
                             if (!currentJob) {
-                                await updateEmbed(100, true);
-                                return true;
+                                if (attempts > 2) {
+                                    await updateEmbed(100, true);
+                                    return true;
+                                }
+                                return false;
                             }
 
                             const progress = (currentJob.progress as number) || 0;
@@ -127,7 +133,7 @@ export class AccountHandler extends BaseInteractionHandler {
                             }
                             return false;
                         } catch (err) {
-                            return true; // Stop on error
+                            return attempts > 5; // Stop on persistent errors
                         }
                     };
 
