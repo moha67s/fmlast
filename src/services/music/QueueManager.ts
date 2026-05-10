@@ -12,6 +12,8 @@ export interface GuildQueue {
     player: Player | null;
     tracks: YoutubeResult[];
     currentTrack: YoutubeResult | null;
+    lastPlayedTrack?: YoutubeResult | null;
+    lastStart?: number;
     isPlaying: boolean;
     isPaused: boolean;
     repeatMode: RepeatMode;

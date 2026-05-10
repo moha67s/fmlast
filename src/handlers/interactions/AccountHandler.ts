@@ -8,12 +8,12 @@ import { LoggerService } from '../../services/bot/LoggerService';
 import { config } from '../../../config';
 
 export class AccountHandler extends BaseInteractionHandler {
-    
+
     canHandle(customId: string): boolean {
-        return customId === 'user-login' || 
-               customId === 'finish-login' || 
-               customId.startsWith('imp_leg:') || 
-               customId.startsWith('imp_std:');
+        return customId === 'user-login' ||
+            customId === 'finish-login' ||
+            customId.startsWith('imp_leg:') ||
+            customId.startsWith('imp_std:');
     }
 
     async handle(interaction: Interaction, client: Client): Promise<void> {
@@ -62,9 +62,9 @@ export class AccountHandler extends BaseInteractionHandler {
             }
 
             if (interaction.customId === 'finish-login') {
-                await interaction.deferUpdate().catch(() => {});
+                await interaction.deferUpdate().catch(() => { });
                 const username = await LastFM.completeLogin(interaction.user.id);
-                
+
                 let job: any = null;
                 if (fullQueue) {
                     // Start the full sync immediately with a unique ID to avoid collisions
@@ -84,8 +84,8 @@ export class AccountHandler extends BaseInteractionHandler {
 
                 const updateEmbed = async (pct: number, done = false) => {
                     const content = `🎉 **Last.fm Linked!**\nSuccessfully connected as **${username}**\n\n` +
-                        (done ? `✅ **Data Download Complete!**\nYour private stats are now available!` : 
-                                `📥 **Downloading your data...**\n${getBar(pct)}\n*This may take a minute depending on your playcount.*`);
+                        (done ? `✅ **Data Download Complete!**\nYour private stats are now available!` :
+                            `📥 **Downloading your data...**\n${getBar(pct)}\n*This may take a minute depending on your playcount.*`);
 
                     await interaction.editReply({
                         components: [{
@@ -95,7 +95,7 @@ export class AccountHandler extends BaseInteractionHandler {
                                 content: content
                             }]
                         }]
-                    }).catch(() => {});
+                    }).catch(() => { });
                 };
 
                 // Initial show
@@ -105,12 +105,12 @@ export class AccountHandler extends BaseInteractionHandler {
                 if (job) {
                     let lastPct = 0;
                     let attempts = 0;
-                    
+
                     const checkProgress = async () => {
                         attempts++;
                         try {
                             const currentJob = await fullQueue!.getJob(job.id);
-                            
+
                             // If job is gone, it likely finished successfully (since we removeOnComplete)
                             // But we wait a few attempts to make sure it didn't just 'not start' yet
                             if (!currentJob) {
@@ -123,7 +123,7 @@ export class AccountHandler extends BaseInteractionHandler {
 
                             const progress = (currentJob.progress as number) || 0;
                             const state = await currentJob.getState();
-                            
+
                             if (state === 'completed' || progress >= 100) {
                                 await updateEmbed(100, true);
                                 return true;
@@ -174,7 +174,7 @@ export class AccountHandler extends BaseInteractionHandler {
                 await interaction.update(updateBuilder.build());
 
                 if (fullQueue) {
-                    await fullQueue.add(`import-${jobId}`, { 
+                    await fullQueue.add(`import-${jobId}`, {
                         type: 'HISTORY_IMPORT',
                         jobId: jobId,
                         discordId: interaction.user.id

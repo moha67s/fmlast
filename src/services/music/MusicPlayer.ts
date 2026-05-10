@@ -413,11 +413,29 @@ export class MusicPlayer {
             for (const node of nodes) {
                 if (node.state !== 1) continue;
                 try {
-                    console.log(`[MusicPlayer] 🔍 Resolving on node ${node.name}: ${track.url || track.title}`);
-                    let res = await node.rest.resolve(track.url);
-                    if (!res || !res.data || res.loadType === 'empty' || res.loadType === 'error') {
-                        res = await node.rest.resolve(`ytsearch:${track.title}`);
+                    let res;
+                    const searchStr = track.artistName && track.trackTitle ? `${track.artistName} ${track.trackTitle}` : track.title;
+                    
+                    if (track._failedFallback) {
+                        console.log(`[MusicPlayer] 🔍 Retrying on node ${node.name} with spsearch/scsearch: ${searchStr}`);
+                        res = await node.rest.resolve(`spsearch:${searchStr}`);
+                        if (!res || !res.data || res.loadType === 'empty' || res.loadType === 'error') {
+                            res = await node.rest.resolve(`scsearch:${searchStr}`);
+                        }
+                    } else {
+                        console.log(`[MusicPlayer] 🔍 Resolving on node ${node.name}: ${track.url || track.title}`);
+                        res = await node.rest.resolve(track.url);
+                        if (!res || !res.data || res.loadType === 'empty' || res.loadType === 'error') {
+                            res = await node.rest.resolve(`spsearch:${searchStr}`);
+                        }
+                        if (!res || !res.data || res.loadType === 'empty' || res.loadType === 'error') {
+                            res = await node.rest.resolve(`ytmsearch:${searchStr}`);
+                        }
+                        if (!res || !res.data || res.loadType === 'empty' || res.loadType === 'error') {
+                            res = await node.rest.resolve(`ytsearch:${track.title}`);
+                        }
                     }
+
                     if (res && res.data && res.loadType !== 'empty' && res.loadType !== 'error') {
                         lavalinkTrack = Array.isArray(res.data) ? res.data[0] : res.data;
                         break;
@@ -437,6 +455,7 @@ export class MusicPlayer {
 
             queue.isPlaying = true;
             queue.currentTrack = track; // Set BEFORE playTrack to avoid race condition
+            queue.lastPlayedTrack = track;
             
             // Send UI first and wait for it
             await MusicUIController.sendPlaybackUI(guildId, track).catch(e => console.error(`[MusicPlayer] UI Error:`, e));
@@ -471,11 +490,15 @@ export class MusicPlayer {
 
         queue.player.removeAllListeners();
 
+        let exceptionPending = false;
+        let endTimeout: NodeJS.Timeout | null = null;
+
         queue.player.on('start', async () => {
             console.log(`[Lavalink] Playback started in guild ${guildId}`);
             queue.isPlaying = true;
             queue.isPaused = false;
             queue.lastUpdate = Date.now();
+            queue.lastStart = Date.now();
             
             VoteSkipCommand.resetVotes(guildId);
             this.startProgressUpdate(guildId);
@@ -494,6 +517,24 @@ export class MusicPlayer {
         queue.player.on('end', (data) => {
             console.log(`[Lavalink] Track ended in guild ${guildId}. Reason: ${data.reason}`);
             if (data.reason === 'replaced') return;
+            if (exceptionPending) {
+                console.log(`[MusicPlayer] ⏭ End event suppressed — exception is handling retry.`);
+                return;
+            }
+            
+            // Check for silent stream failure (finished instantly)
+            const playDuration = Date.now() - (queue.lastStart || 0);
+            if (data.reason === 'finished' && playDuration < 2000 && queue.lastPlayedTrack && !queue.lastPlayedTrack._failedFallback) {
+                console.log(`[MusicPlayer] ⚠️ Track finished instantly (possible silent stream failure). Triggering fallback...`);
+                const failedTrack = queue.lastPlayedTrack;
+                failedTrack._failedFallback = true;
+                failedTrack.url = ''; 
+                queue.tracks.unshift(failedTrack);
+                
+                if (endTimeout) clearTimeout(endTimeout);
+                this.processQueue(guildId, 1).catch(() => {});
+                return;
+            }
             
             queue.isPlaying = false;
             this.stopProgressUpdate(guildId);
@@ -501,16 +542,38 @@ export class MusicPlayer {
             VoiceStatusService.clearStatus(client, queue.voiceChannelId);
             VoiceStatusService.updatePresence(client, null);
 
-            // Kickstart next track
-            this.processQueue(guildId).catch(err => {
-                console.error(`[MusicPlayer] End event processQueue error:`, err);
-            });
+            endTimeout = setTimeout(() => {
+                if (exceptionPending) return;
+                this.processQueue(guildId).catch(err => {
+                    console.error(`[MusicPlayer] End event processQueue error:`, err);
+                });
+            }, 250);
         });
 
         queue.player.on('exception', (data) => {
             console.error(`[Lavalink] Playback exception in guild ${guildId}:`, data.exception);
+            exceptionPending = true;
             queue.isPlaying = false;
-            this.processQueue(guildId, 1).catch(() => {});
+            playbackMutex.delete(guildId);
+            
+            if (endTimeout) {
+                clearTimeout(endTimeout);
+                endTimeout = null;
+                console.log(`[MusicPlayer] ⏭ End event processQueue cancelled due to incoming exception.`);
+            }
+
+            const failedTrack = queue.lastPlayedTrack;
+            if (failedTrack && !failedTrack._failedFallback) {
+                console.log(`[MusicPlayer] 🔄 Retrying track with fallback sources...`);
+                failedTrack._failedFallback = true;
+                failedTrack.url = ''; // Clear URL to force search
+                queue.tracks.unshift(failedTrack);
+            }
+            
+            setTimeout(() => {
+                exceptionPending = false;
+                this.processQueue(guildId, 1).catch(() => {});
+            }, 250);
         });
     }
 
